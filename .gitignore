@@ -1,0 +1,13 @@
+*.pyc
+*.DS*
+*.csv
+*.txt
+backend/trading/settings.py
+frontend/node_modules/
+venv
+*.ipynb
+
+**/.DS_Store
+db.sqlite3
+
+backend/stocks/migrations/
