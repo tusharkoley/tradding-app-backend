@@ -1,7 +1,7 @@
 *.pyc
 *.DS*
 *.csv
-*.txt
+.env
 backend/trading/settings.py
 frontend/node_modules/
 venv
