@@ -13,6 +13,8 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 from pathlib import Path
 from dotenv import load_dotenv
 import os
+import dj_database_url
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -28,7 +30,7 @@ SECRET_KEY = os.environ.get("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['127.0.0.1:8000','localhost','1.0.0.127.in-addr.arpa','127.0.0.1']
+ALLOWED_HOSTS = ['127.0.0.1:8000','localhost','1.0.0.127.in-addr.arpa','127.0.0.1','gentle-courage.up.railway.app']
 
 
 # Application definition
@@ -98,15 +100,13 @@ WSGI_APPLICATION = "trading.wsgi.application"
 # }
 
 
+
+
+
 DATABASES = {
-    'default': {
-        'ENGINE': os.environ.get("DB_ENGINE"),
-        'NAME': os.environ.get("DB_NAME"),
-        'USER': os.environ.get("DB_USER"),
-        'PASSWORD': os.environ.get("DB_PASSWORD"),
-        'HOST': os.environ.get("DB_HOST"),
-        'PORT': os.environ.get("DB_PORT"),
-    }
+    'default': dj_database_url.config(
+        default=os.environ.get("DATABASE_URL")  # Load from environment variables
+    )
 }
 
 
@@ -148,6 +148,8 @@ STATIC_URL = "static/"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
+
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
