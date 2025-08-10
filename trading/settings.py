@@ -19,7 +19,7 @@ import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# load_dotenv()
+load_dotenv()
 
 # SECURITY WARNING: keep the secret key used in production secret!
 
@@ -177,3 +177,5 @@ EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
 
 
 FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY")
+
+## Using the the railway database as the default database
