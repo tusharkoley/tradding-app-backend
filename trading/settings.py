@@ -181,7 +181,9 @@ REST_FRAMEWORK = {
 # FRONTEND_ORIGINS=https://your-app.vercel.app,https://www.yourdomain.com
 _frontend_origins = os.environ.get("FRONTEND_ORIGINS", "http://localhost:5173")
 CORS_ALLOWED_ORIGINS = [
-    origin.strip() for origin in _frontend_origins.split(",") if origin.strip()
+    origin.strip().rstrip("/")
+    for origin in _frontend_origins.split(",")
+    if origin.strip()
 ]
 
 # Keep CSRF trusted origins aligned for browser-based POST requests.
