@@ -14,7 +14,6 @@ from pathlib import Path
 from dotenv import load_dotenv
 import os
 import dj_database_url
-import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -178,9 +177,15 @@ REST_FRAMEWORK = {
     ]
 }
 
+# Comma-separated frontend origins, e.g.
+# FRONTEND_ORIGINS=https://your-app.vercel.app,https://www.yourdomain.com
+_frontend_origins = os.environ.get("FRONTEND_ORIGINS", "http://localhost:5173")
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
+    origin.strip() for origin in _frontend_origins.split(",") if origin.strip()
 ]
+
+# Keep CSRF trusted origins aligned for browser-based POST requests.
+CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
 
 AUTH_USER_MODEL = 'users.Profile'
 
