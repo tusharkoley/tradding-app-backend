@@ -2,6 +2,47 @@ import yfinance as yf
 import numpy as np
 import finnhub
 
+from trading.settings import FINNHUB_API_KEY
+
+
+# Initialize the Finnhub client only if an API key is provided. This avoids
+# making network requests during Django startup or when running management
+# commands if the key isn't configured.
+finnhub_client = None
+if FINNHUB_API_KEY:
+    try:
+        finnhub_client = finnhub.Client(api_key=FINNHUB_API_KEY)
+    except Exception:
+        finnhub_client = None
+
+
+def get_current_price(ticker):
+    """
+    Retrieves the current stock price for a given symbol using Finnhub.
+
+    Returns None immediately if the Finnhub client isn't configured.
+    """
+    if not finnhub_client:
+        return None
+
+    try:
+        quote = finnhub_client.quote(ticker)
+        if quote and quote.get('c') is not None:
+            return quote['c']  # 'c' represents the current price
+        else:
+            print(f"Could not retrieve quote for {ticker}")
+            return None
+
+    except Exception as e:
+        print(f"Error retrieving stock price for {ticker}: {e}")
+        return None
+
+
+# No top-level code that triggers network calls here.
+import yfinance as yf
+import numpy as np
+import finnhub
+
 
 from trading.settings import FINNHUB_API_KEY
 # def get_current_price(ticker):
@@ -53,9 +94,9 @@ def get_current_price(ticker):
 
 
 
-ticker_symbol = "AAPL"  # Example: Google stock
-current_price = get_current_price(ticker_symbol)
-print(f"The current price of {ticker_symbol} is: {current_price}")
+# ticker_symbol = "AAPL"  # Example: Google stock
+# current_price = get_current_price(ticker_symbol)
+# print(f"The current price of {ticker_symbol} is: {current_price}")
 
 
 

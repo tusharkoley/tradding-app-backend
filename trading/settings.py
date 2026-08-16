@@ -19,16 +19,30 @@ import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-load_dotenv()
+# Explicitly load the .env file from BASE_DIR so manage.py runs pick it up
+load_dotenv(BASE_DIR / '.env')
 
 # SECURITY WARNING: keep the secret key used in production secret!
 
 
-
 SECRET_KEY = os.environ.get("SECRET_KEY")
+
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
+
+# If SECRET_KEY wasn't provided via the environment or .env, provide a
+# clear development fallback when DEBUG is True so local runs don't fail.
+# In production we raise an error to avoid accidentally running without a secret.
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = "unsafe-dev-secret-change-me"
+    else:
+        from django.core.exceptions import ImproperlyConfigured
+
+        raise ImproperlyConfigured(
+            "SECRET_KEY environment variable not set. Set SECRET_KEY in the environment or in a .env file."
+        )
 
 ALLOWED_HOSTS = ['127.0.0.1:8000','localhost','1.0.0.127.in-addr.arpa','127.0.0.1','gentle-courage.up.railway.app','*']
 
@@ -102,7 +116,6 @@ WSGI_APPLICATION = "trading.wsgi.application"
 
 
 
-
 DATABASES = {
     'default': dj_database_url.config(
         default=os.environ.get("DATABASE_URL")  # Load from environment variables
@@ -156,6 +169,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 REST_FRAMEWORK = {
     # Use Django's standard `django.contrib.auth` permissions,
     # or allow read-only access for unauthenticated users.
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.DjangoModelPermissionsOrAnonReadOnly'
     ]
@@ -176,6 +193,8 @@ EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")
 
 
-FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY")
+
 
 ## Using the the railway database as the default database
+
+FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY")

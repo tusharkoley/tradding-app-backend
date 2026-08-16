@@ -1,6 +1,6 @@
 
 from rest_framework import serializers
-from .models import Company, Price
+from .models import Company, Price, TechnicalIndicators
 
 
 
@@ -47,4 +47,10 @@ class PriceListSerializer(serializers.ListSerializer):
         for record, data in zip(instance, validated_data):
             self.child.update(record, data)
         return instance
+
+
+class TechnicalIndicatorsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TechnicalIndicators
+        fields = '__all__'
     

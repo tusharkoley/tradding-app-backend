@@ -12,11 +12,11 @@ import os
 start_pr_seq = int(os.environ.get('price_seq','0'))
 # price_seq_iter = iter(range(start_pr_seq,2**32))
 
-with open('seq.txt','r') as f:
-    start_pr_seq = int(f.read())
+# with open('seq.txt','r') as f:
+#     start_pr_seq = int(f.read())
     
 
-print('***** Start Seq val ', start_pr_seq)
+# print('***** Start Seq val ', start_pr_seq)
 
 class Stock:
     def __init__(self, ticker,company_id=0, period='10y', batch_size=500):
