@@ -4,22 +4,27 @@ from django.db import models
 
 class Company(models.Model):
     id = models.AutoField(primary_key=True)
-    ticker = models.CharField(max_length=20)
+    ticker = models.CharField(max_length=20, db_index=True)
     company_name = models.CharField(max_length=200)
     soctor = models.CharField(max_length=200, null=True)
     industry = models.CharField(max_length=200, null=True)
     industry_subgroup = models.CharField(max_length=200, null=True, blank=True)
     description = models.CharField(max_length=2000)
-    country = models.CharField(max_length=100)
+    country = models.CharField(max_length=100, db_index=True)
     website = models.URLField(max_length=200,null=True)
     address = models.CharField(max_length=300)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["industry", "country"]),
+        ]
     
 
 
 class Price(models.Model):
     id = models.AutoField(primary_key=True)
-    ticker = models.CharField(max_length=20)
-    date = models.DateField()
+    ticker = models.CharField(max_length=20, db_index=True)
+    date = models.DateField(db_index=True)
     open = models.FloatField()
     close = models.FloatField()
     high = models.FloatField()
@@ -33,6 +38,10 @@ class Price(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=["ticker", "date"], name="unique_ticker_date"),
+        ]
+        indexes = [
+            models.Index(fields=["ticker", "-date"]),
+            models.Index(fields=["date", "ticker"]),
         ]
 
 

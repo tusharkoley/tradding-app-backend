@@ -2,6 +2,7 @@ from django.shortcuts import render
 
 from django.db.models import OuterRef, Subquery
 from django.db.models import Max
+from django.db import connection
 from django.core.cache import cache
 from datetime import timedelta
 from .models import Price, Company, TechnicalIndicators
@@ -34,9 +35,16 @@ class CompanyList(APIView):
     
 
     def get(self, request, format=None):
-        Companies = Company.objects.all()
-        serializer = CompanySerializer(Companies, many=True)
-        return Response(serializer.data)
+        cache_key = "stocks:companies:v1"
+        cached_payload = cache.get(cache_key)
+        if cached_payload is not None:
+            return Response(cached_payload)
+
+        companies = Company.objects.all()
+        serializer = CompanySerializer(companies, many=True)
+        payload = serializer.data
+        cache.set(cache_key, payload, 5 * 60)
+        return Response(payload)
     
     def post(self, request, format=None):
         serializer = CompanyListSerializer(data=request.data)
@@ -81,15 +89,31 @@ class PriceLatestList(APIView):
     queryset = Price.objects.all()
 
     def get(self, request, format=None):
-        latest_pk_subquery = Price.objects.filter(
-            ticker=OuterRef('ticker')
-        ).order_by('-date').values('pk')[:1]
+        cache_key = "stocks:prices:latest:v1"
+        cached_payload = cache.get(cache_key)
+        if cached_payload is not None:
+            return Response(cached_payload)
 
-        latest_prices = Price.objects.filter(
-            pk=Subquery(latest_pk_subquery)
-        ).order_by('ticker').values('ticker', 'date', 'close')
+        if connection.vendor == "postgresql":
+            latest_prices = (
+                Price.objects
+                .order_by('ticker', '-date')
+                .distinct('ticker')
+                .values('ticker', 'date', 'close')
+                .order_by('ticker')
+            )
+        else:
+            latest_pk_subquery = Price.objects.filter(
+                ticker=OuterRef('ticker')
+            ).order_by('-date').values('pk')[:1]
 
-        return Response(list(latest_prices))
+            latest_prices = Price.objects.filter(
+                pk=Subquery(latest_pk_subquery)
+            ).order_by('ticker').values('ticker', 'date', 'close')
+
+        payload = list(latest_prices)
+        cache.set(cache_key, payload, 5 * 60)
+        return Response(payload)
 
 
 class TechnicalIndicatorsLatestList(APIView):
@@ -97,18 +121,31 @@ class TechnicalIndicatorsLatestList(APIView):
     serializer_class = TechnicalIndicatorsSerializer
 
     def get(self, request, format=None):
-        latest_pk_subquery = TechnicalIndicators.objects.filter(
-            ticker=OuterRef('ticker')
-        ).order_by('-date').values('pk')[:1]
+        rs_min_raw = request.query_params.get('rs_min')
+        cache_key = f"stocks:technicals:latest:v1:rs_min={rs_min_raw if rs_min_raw is not None else 'all'}"
+        cached_payload = cache.get(cache_key)
+        if cached_payload is not None:
+            return Response(cached_payload)
 
-        technicals = TechnicalIndicators.objects.filter(
-            pk=Subquery(latest_pk_subquery)
-        ).order_by('ticker')
+        if connection.vendor == "postgresql":
+            technicals = (
+                TechnicalIndicators.objects
+                .order_by('ticker', '-date')
+                .distinct('ticker')
+                .order_by('ticker')
+            )
+        else:
+            latest_pk_subquery = TechnicalIndicators.objects.filter(
+                ticker=OuterRef('ticker')
+            ).order_by('-date').values('pk')[:1]
 
-        rs_min = request.query_params.get('rs_min')
-        if rs_min is not None:
+            technicals = TechnicalIndicators.objects.filter(
+                pk=Subquery(latest_pk_subquery)
+            ).order_by('ticker')
+
+        if rs_min_raw is not None:
             try:
-                rs_min = float(rs_min)
+                rs_min = float(rs_min_raw)
                 technicals = technicals.filter(rs_industry__gte=rs_min)
             except ValueError:
                 return Response(
@@ -117,7 +154,9 @@ class TechnicalIndicatorsLatestList(APIView):
                 )
 
         serializer = TechnicalIndicatorsSerializer(technicals, many=True)
-        return Response(serializer.data)
+        payload = serializer.data
+        cache.set(cache_key, payload, 5 * 60)
+        return Response(payload)
 
 
 class TechnicalIndicatorsLatestByTicker(APIView):
