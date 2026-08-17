@@ -272,21 +272,57 @@ class IndustryPerformanceRanking(APIView):
             cache.set(cache_key, payload, self.CACHE_TTL_SECONDS)
             return Response(payload)
 
-        latest_pk_subquery = Price.objects.filter(
-            ticker=OuterRef('ticker')
-        ).order_by('-date').values('pk')[:1]
+        tickers = list(company_map.keys())
 
-        past_close_subquery = Price.objects.filter(
-            ticker=OuterRef('ticker'),
-            date__lte=lookback_date,
-        ).order_by('-date').values('close')[:1]
+        if connection.vendor == "postgresql":
+            # PostgreSQL DISTINCT ON is significantly faster for "latest row per ticker".
+            latest_prices = (
+                Price.objects
+                .filter(ticker__in=tickers)
+                .order_by('ticker', '-date')
+                .distinct('ticker')
+                .values('ticker', 'close')
+            )
 
-        latest_with_past_prices = Price.objects.filter(
-            pk=Subquery(latest_pk_subquery),
-            ticker__in=company_map.keys(),
-        ).annotate(
-            past_close=Subquery(past_close_subquery)
-        ).values('ticker', 'close', 'past_close')
+            past_prices = (
+                Price.objects
+                .filter(ticker__in=tickers, date__lte=lookback_date)
+                .order_by('ticker', '-date')
+                .distinct('ticker')
+                .values('ticker', 'close')
+            )
+
+            latest_close_by_ticker = {
+                row['ticker']: row['close'] for row in latest_prices
+            }
+            past_close_by_ticker = {
+                row['ticker']: row['close'] for row in past_prices
+            }
+
+            latest_with_past_prices = [
+                {
+                    'ticker': ticker,
+                    'close': latest_close_by_ticker.get(ticker),
+                    'past_close': past_close_by_ticker.get(ticker),
+                }
+                for ticker in tickers
+            ]
+        else:
+            latest_pk_subquery = Price.objects.filter(
+                ticker=OuterRef('ticker')
+            ).order_by('-date').values('pk')[:1]
+
+            past_close_subquery = Price.objects.filter(
+                ticker=OuterRef('ticker'),
+                date__lte=lookback_date,
+            ).order_by('-date').values('close')[:1]
+
+            latest_with_past_prices = Price.objects.filter(
+                pk=Subquery(latest_pk_subquery),
+                ticker__in=tickers,
+            ).annotate(
+                past_close=Subquery(past_close_subquery)
+            ).values('ticker', 'close', 'past_close')
 
         performance_by_industry = {}
         for item in latest_with_past_prices:
