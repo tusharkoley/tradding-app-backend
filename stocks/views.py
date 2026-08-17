@@ -65,6 +65,7 @@ class CompanyDetails(generics.RetrieveUpdateDestroyAPIView):
 class PriceList(APIView):
     queryset = Company.objects.all()
     serializer_class = PriceSerilizer
+    permission_classes = [IsStaffOrReadOnly]
 
     def get(self, request, ticker, format=None):
         prices = Price.objects.filter(ticker=ticker)
@@ -83,6 +84,7 @@ class PriceList(APIView):
 class PriceDetails(generics.RetrieveUpdateDestroyAPIView):
     queryset = Price.objects.all()
     serializer_class = PriceSerilizer
+    permission_classes = [IsStaffOrReadOnly]
 
 
 class PriceLatestList(APIView):
