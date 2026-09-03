@@ -10,20 +10,25 @@ from .serializers import CompanySerializer, PriceSerilizer, CompanyListSerialize
 from rest_framework import generics
 
 from rest_framework.decorators import api_view
+from rest_framework.decorators import permission_classes
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 from rest_framework import viewsets
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework import mixins
+from rest_framework.permissions import AllowAny
 from .permissions import IsStaffOrReadOnly
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def api_root(request, format=None):
     return Response({
         'companies': reverse('companies', request=request, format=format),
-        'company/prices': reverse('company/prices', request=request, format=format),
+        'prices_latest': reverse('prices-latest', request=request, format=format),
+        'technicals_latest': reverse('technicals-latest', request=request, format=format),
+        'industries_performance': reverse('industries-performance', request=request, format=format),
 
     })
 
