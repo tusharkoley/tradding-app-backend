@@ -195,6 +195,10 @@ class Command(BaseCommand):
         try:
             for ticker in tqdm(tickers, desc="Processing tickers"):
                 try:
+                    # Railway/managed Postgres can drop idle connections during a long run.
+                    # Reopen here before any ORM access so each ticker starts cleanly.
+                    close_old_connections()
+
                     if ticker.upper() in SKIP_TICKERS:
                         skipped_count += 1
                         self.stdout.write(self.style.WARNING(f"Skipping unsupported benchmark ticker: {ticker}"))
