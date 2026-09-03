@@ -11,6 +11,7 @@ class Command(BaseCommand):
         parser.add_argument("--sleep", type=float, default=0.1, help="Sleep between API calls")
         parser.add_argument("--years", type=int, default=20, help="History fetch depth for new tickers")
         parser.add_argument("--start-date", default=None, help="Optional backfill start date YYYY-MM-DD")
+        parser.add_argument("--full-refresh", action="store_true", help="Force a historical re-load for recovery after stale data, deployment issues, or missing prices")
         parser.add_argument("--http-timeout", type=float, default=30.0, help="HTTP timeout per request")
         parser.add_argument("--http-retries", type=int, default=2, help="HTTP retry count")
         parser.add_argument("--http-backoff", type=float, default=1.5, help="HTTP retry backoff seconds")
@@ -29,6 +30,7 @@ class Command(BaseCommand):
             "http_retries": options["http_retries"],
             "http_backoff": options["http_backoff"],
             "dry_run": options["dry_run"],
+            "full_refresh": bool(options.get("full_refresh")),
         }
 
         if options.get("api_token"):

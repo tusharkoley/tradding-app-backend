@@ -46,8 +46,32 @@ def load_checkpoint_map(path: Path) -> dict[str, date | None]:
 
 
 def append_checkpoint(path: Path, ticker: str, last_date: date) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a") as cp:
         cp.write(f"{ticker}|{last_date.isoformat()}\n")
+
+
+def resolve_refresh_from_date(
+    *,
+    latest: date | None,
+    checkpoint_date: date | None,
+    start_date: date | None,
+    years: int,
+    full_refresh: bool = False,
+) -> date:
+    if start_date:
+        return start_date
+
+    if full_refresh:
+        return date(2006, 1, 1)
+
+    if checkpoint_date:
+        return checkpoint_date + timedelta(days=1)
+
+    if latest:
+        return latest + timedelta(days=1)
+
+    return date.today() - timedelta(days=max(years, 1) * 365)
 
 
 KNOWN_EXCHANGE_SUFFIXES = {
@@ -123,8 +147,9 @@ class Command(BaseCommand):
         parser.add_argument("--sleep", type=float, default=0.0, help="Seconds to sleep between API calls to avoid rate limits")
         parser.add_argument("--years", type=int, default=20, help="Number of years to fetch when no data exists (default 20)")
         parser.add_argument("--start-date", default=None, help="Optional start date (YYYY-MM-DD) to force fetching from an earlier date (useful to backfill historical data)")
-        parser.add_argument("--checkpoint-file", default="/tmp/eodhd_checkpoint.txt", help="File to track completed tickers so a restart resumes from where it left off (default: /tmp/eodhd_checkpoint.txt)")
+        parser.add_argument("--checkpoint-file", default=str(Path(__file__).resolve().parents[3] / "eodhd_checkpoint.txt"), help="File to track completed tickers so a restart resumes from where it left off (default: backend/eodhd_checkpoint.txt)")
         parser.add_argument("--tickers", nargs="+", default=None, help="Only process these specific tickers (e.g. --tickers SPY.US AAPL.US)")
+        parser.add_argument("--full-refresh", action="store_true", help="Ignore checkpoint/latest-date and reload the configured historical window for all tickers (useful after deploys, stale data, or empty databases)")
         parser.add_argument("--http-timeout", type=float, default=30.0, help="HTTP timeout in seconds per API call (default 30)")
         parser.add_argument("--http-retries", type=int, default=2, help="Number of retries for failed HTTP calls (default 2)")
         parser.add_argument("--http-backoff", type=float, default=1.5, help="Backoff multiplier (seconds) between HTTP retries (default 1.5)")
@@ -176,6 +201,7 @@ class Command(BaseCommand):
         session.params = {"api_token": api_token, "fmt": "json"}
 
         years = int(options.get("years") or 20)
+        full_refresh = bool(options.get("full_refresh"))
         start_date_opt = options.get("start_date")
         if start_date_opt:
             try:
@@ -184,6 +210,9 @@ class Command(BaseCommand):
                 raise CommandError("Invalid --start-date format, expected YYYY-MM-DD")
         else:
             sd = None
+
+        if full_refresh and sd is None:
+            sd = date(2006, 1, 1)
 
         new_rows_total = 0
         no_data_count = 0
@@ -218,18 +247,18 @@ class Command(BaseCommand):
                     checkpoint_date = checkpoint_map.get(ticker)
 
                     # Determine from_date:
-                    # - If --start-date provided, backfill from that date (we will insert bars earlier than existing earliest)
-                    # - Else if checkpoint exists, fetch from the day after the last successful checkpoint date
-                    # - Else if we have latest data, fetch from latest+1 (incremental forward)
-                    # - Else fetch `years` years back from today
-                    if sd:
-                        from_date = sd
-                    elif checkpoint_date:
-                        from_date = checkpoint_date + timedelta(days=1)
-                    elif latest:
-                        from_date = latest + timedelta(days=1)
-                    else:
-                        from_date = date.today() - timedelta(days=years * 365)
+                    # - If --start-date provided, backfill from that date.
+                    # - Else if --full-refresh is set, forcibly reload a historical window from 2006.
+                    # - Else if checkpoint exists, fetch from the day after the last successful checkpoint date.
+                    # - Else if we have latest data, fetch from latest+1 (incremental forward).
+                    # - Else fetch `years` years back from today.
+                    from_date = resolve_refresh_from_date(
+                        latest=latest,
+                        checkpoint_date=checkpoint_date,
+                        start_date=sd,
+                        years=years,
+                        full_refresh=full_refresh,
+                    )
 
                     to_date = date.today()
 
@@ -287,7 +316,13 @@ class Command(BaseCommand):
                             continue
 
                         # Determine whether to include this bar:
-                        if sd:
+                        if full_refresh:
+                            # Full refresh should reload the configured historical window and let the DB
+                            # unique constraint ignore any rows already present. This ensures new bars are
+                            # inserted even when the database already has a recent latest date.
+                            if bar_date < sd:
+                                continue
+                        elif sd:
                             # backfill mode: include bars between sd..to_date that are earlier than existing earliest
                             if earliest and bar_date >= earliest:
                                 # this bar is at/after earliest existing row -> skip to avoid duplicate/overlap
