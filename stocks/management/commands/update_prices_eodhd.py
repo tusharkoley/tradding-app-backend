@@ -17,6 +17,24 @@ def parse_date(s):
     return datetime.strptime(s, "%Y-%m-%d").date()
 
 
+def parse_bar_date(bar):
+    raw_date = bar.get("date") or bar.get("datetime")
+    if not raw_date:
+        return None
+
+    if isinstance(raw_date, str):
+        raw_date = raw_date.strip()
+        if "T" in raw_date:
+            raw_date = raw_date.split("T", 1)[0]
+        if " " in raw_date:
+            raw_date = raw_date.split(" ", 1)[0]
+
+    try:
+        return parse_date(raw_date)
+    except Exception:
+        return None
+
+
 def load_checkpoint_map(path: Path) -> dict[str, date | None]:
     checkpoint_map: dict[str, date | None] = {}
     if not path.exists():
@@ -336,19 +354,22 @@ class Command(BaseCommand):
 
                     # Data is expected to be a list of daily bars. Create Price objects for dates > latest
                     price_objs = []
+                    api_latest_date = None
                     for bar in data:
                         # Expected keys: date, open, high, low, close, volume, adjusted_close, split, dividend
-                        try:
-                            bar_date = parse_date(bar.get("date"))
-                        except Exception:
+                        bar_date = parse_bar_date(bar)
+                        if bar_date is None:
                             continue
+
+                        if api_latest_date is None or bar_date > api_latest_date:
+                            api_latest_date = bar_date
 
                         # Determine whether to include this bar:
                         if full_refresh:
                             # Full refresh should reload the configured historical window and let the DB
                             # unique constraint ignore any rows already present. This ensures new bars are
                             # inserted even when the database already has a recent latest date.
-                            if bar_date < sd:
+                            if sd and bar_date < sd:
                                 continue
                         elif sd:
                             # backfill mode: include bars between sd..to_date that are earlier than existing earliest
@@ -381,7 +402,32 @@ class Command(BaseCommand):
 
                     if not price_objs:
                         no_data_count += 1
-                        self.stdout.write(self.style.NOTICE(f"No incremental rows to add for {ticker}"))
+                        if latest and api_latest_date:
+                            db_lag_days = (date.today() - latest).days
+                            if api_latest_date <= latest and db_lag_days >= 5:
+                                self.stdout.write(
+                                    self.style.WARNING(
+                                        f"No incremental rows to add for {ticker}. "
+                                        f"DB latest={latest}, API latest={api_latest_date}. "
+                                        "API appears stale for this symbol."
+                                    )
+                                )
+                            else:
+                                self.stdout.write(
+                                    self.style.NOTICE(
+                                        f"No incremental rows to add for {ticker} "
+                                        f"(DB latest={latest}, API latest={api_latest_date})"
+                                    )
+                                )
+                        elif latest and not api_latest_date:
+                            self.stdout.write(
+                                self.style.WARNING(
+                                    f"No incremental rows to add for {ticker}. "
+                                    "Could not parse any API bar dates (expected date/datetime keys)."
+                                )
+                            )
+                        else:
+                            self.stdout.write(self.style.NOTICE(f"No incremental rows to add for {ticker}"))
                         continue
 
                     self.stdout.write(f"Preparing to insert {len(price_objs)} rows for {ticker} ({symbol})")
