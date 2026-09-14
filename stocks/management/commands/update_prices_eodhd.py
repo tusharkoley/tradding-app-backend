@@ -283,7 +283,10 @@ class Command(BaseCommand):
                     if r is None or r.status_code != 200:
                         fetch_failed_count += 1
                         self.stdout.write(self.style.ERROR(f"Failed to fetch {symbol}: {last_http_error}"))
-                        continue
+                        raise CommandError(
+                            f"Price refresh failed for {ticker}: fetch failed ({last_http_error}). "
+                            "Stopping before any downstream refresh."
+                        )
 
                     if sleep_secs:
                         time.sleep(sleep_secs)
@@ -293,7 +296,10 @@ class Command(BaseCommand):
                     except json.JSONDecodeError:
                         fetch_failed_count += 1
                         self.stdout.write(self.style.ERROR(f"Invalid JSON for {symbol}. Response start: {r.text[:200]}"))
-                        continue
+                        raise CommandError(
+                            f"Price refresh failed for {ticker}: invalid JSON response from EODHD. "
+                            "Stopping before any downstream refresh."
+                        )
 
                     if not data:
                         no_data_count += 1
@@ -381,10 +387,17 @@ class Command(BaseCommand):
                             else:
                                 db_failed_count += 1
                                 self.stdout.write(self.style.ERROR(f"Giving up on {ticker} after 3 attempts"))
+                                raise CommandError(
+                                    f"Price refresh failed for {ticker}: DB insert failed after 3 attempts. "
+                                    "Stopping before any downstream refresh."
+                                )
                 except Exception as e:
                     unexpected_error_count += 1
                     self.stdout.write(self.style.ERROR(f"Unexpected error while processing {ticker}: {e}"))
-                    continue
+                    raise CommandError(
+                        f"Price refresh failed for {ticker}: unexpected error ({e}). "
+                        "Stopping before any downstream refresh."
+                    ) from e
         except KeyboardInterrupt:
             interrupted = True
             self.stdout.write(self.style.WARNING("Interrupted by user. Exiting gracefully with summary."))
@@ -399,3 +412,21 @@ class Command(BaseCommand):
         )
         if interrupted:
             self.stdout.write(self.style.WARNING("Run ended early due to interrupt."))
+
+        if fetch_failed_count or db_failed_count or unexpected_error_count:
+            raise CommandError(
+                "Price refresh failed: "
+                f"fetch_failed={fetch_failed_count}, "
+                f"db_failed={db_failed_count}, "
+                f"unexpected_errors={unexpected_error_count}. "
+                "Stopping before any downstream technical refresh."
+            )
+
+        if not dry_run and (fetch_failed_count or db_failed_count or unexpected_error_count):
+            raise CommandError(
+                "Price refresh encountered errors: "
+                f"fetch_failed={fetch_failed_count}, "
+                f"db_failed={db_failed_count}, "
+                f"unexpected_errors={unexpected_error_count}. "
+                "Stopping before technical refresh to avoid stale/partial data."
+            )

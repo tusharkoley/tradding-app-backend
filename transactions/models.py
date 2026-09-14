@@ -33,7 +33,7 @@ class Transactions(models.Model):
 class Portfolio(models.Model):
 
     user = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='portfolios') 
-    security_type = models.CharField(choices=security_types, default='Stocks')
+    security_type = models.CharField(max_length=20, choices=security_types, default='Stocks')
     ticker = models.CharField(max_length=50)
     quantity = models.FloatField(null=True)
 

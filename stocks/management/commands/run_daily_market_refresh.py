@@ -1,5 +1,5 @@
 from django.core.cache import cache
-from django.core.management import BaseCommand, call_command
+from django.core.management import BaseCommand, CommandError, call_command
 
 
 class Command(BaseCommand):
@@ -39,7 +39,15 @@ class Command(BaseCommand):
         if options.get("start_date"):
             update_kwargs["start_date"] = options["start_date"]
 
-        call_command("update_prices_eodhd", **update_kwargs)
+        try:
+            call_command("update_prices_eodhd", **update_kwargs)
+        except CommandError as exc:
+            self.stderr.write(
+                self.style.ERROR(
+                    "Price refresh failed; stopping before technical indicators and cache refresh."
+                )
+            )
+            raise CommandError(f"Daily market refresh aborted because the price update failed: {exc}") from exc
 
         self.stdout.write(self.style.NOTICE("Step 2/3: Recomputing technical indicators"))
         call_command(
