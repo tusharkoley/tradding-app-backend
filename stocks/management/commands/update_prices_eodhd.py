@@ -94,6 +94,17 @@ SKIP_TICKERS = {
 }
 
 
+def is_ticker_not_found_response(response):
+    if response is None:
+        return False
+
+    if response.status_code != 404:
+        return False
+
+    body = (response.text or "").strip().lower()
+    return "ticker not found" in body
+
+
 def build_eodhd_symbol(ticker, country, default_exchange):
     raw_ticker = (ticker or "").strip()
     upper_ticker = raw_ticker.upper()
@@ -279,6 +290,17 @@ class Command(BaseCommand):
 
                         if attempt < http_retries:
                             time.sleep(http_backoff * (attempt + 1))
+
+                    if is_ticker_not_found_response(r):
+                        skipped_count += 1
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Skipping unavailable ticker in EODHD: {ticker} ({symbol})"
+                            )
+                        )
+                        if not dry_run:
+                            append_checkpoint(checkpoint_path, ticker, date.today())
+                        continue
 
                     if r is None or r.status_code != 200:
                         fetch_failed_count += 1
