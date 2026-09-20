@@ -193,6 +193,7 @@ class IndustryPerformanceRanking(APIView):
     ALLOWED_MONTHS = {1, 3, 6, 9, 12}
     queryset = Price.objects.all()
     CACHE_TTL_SECONDS = 10 * 60
+    COUNTRIES_CACHE_KEY = "industry_perf:countries:v1"
     INDUSTRY_NORMALIZATION_MAP = {
         'information technogoy': 'Information Technology',
         'information technology': 'Information Technology',
@@ -226,21 +227,28 @@ class IndustryPerformanceRanking(APIView):
             )
 
         latest_date = Price.objects.aggregate(max_date=Max('date')).get('max_date')
-        available_countries = list(
-            Company.objects.exclude(country__isnull=True)
-            .exclude(country='')
-            .values_list('country', flat=True)
-            .distinct()
-            .order_by('country')
-        )
-
         cache_key = (
-            f"industry_perf_v1:{months}:{(country or 'all').lower()}:"
+            f"industry_perf_v2:{months}:{(country or 'all').lower()}:"
             f"{latest_date.isoformat() if latest_date else 'none'}"
         )
         cached_payload = cache.get(cache_key)
         if cached_payload is not None:
             return Response(cached_payload)
+
+        available_countries = cache.get(self.COUNTRIES_CACHE_KEY)
+        if available_countries is None:
+            available_countries = list(
+                Company.objects.exclude(country__isnull=True)
+                .exclude(country='')
+                .values_list('country', flat=True)
+                .distinct()
+                .order_by('country')
+            )
+            cache.set(
+                self.COUNTRIES_CACHE_KEY,
+                available_countries,
+                self.CACHE_TTL_SECONDS,
+            )
 
         if latest_date is None:
             payload = {
@@ -261,81 +269,27 @@ class IndustryPerformanceRanking(APIView):
         if country:
             company_queryset = company_queryset.filter(country=country)
 
-        company_map = {
-            item['ticker']: self._normalize_industry(item['industry'])
-            for item in company_queryset.values('ticker', 'industry')
-        }
+        # Anchor the query on the small, already-filtered company table. The
+        # (ticker, -date) price index makes both scalar subqueries index seeks,
+        # avoiding two DISTINCT ON scans and the large ticker IN clauses that
+        # used to dominate the cold response time on PostgreSQL.
+        latest_close_subquery = Price.objects.filter(
+            ticker=OuterRef('ticker'),
+        ).order_by('-date').values('close')[:1]
+        past_close_subquery = Price.objects.filter(
+            ticker=OuterRef('ticker'),
+            date__lte=lookback_date,
+        ).order_by('-date').values('close')[:1]
 
-        if not company_map:
-            payload = {
-                'months': months,
-                'country': country or 'All',
-                'as_of_date': latest_date,
-                'lookback_date': lookback_date,
-                'top_industry': None,
-                'rankings': [],
-                'available_countries': available_countries,
-            }
-            cache.set(cache_key, payload, self.CACHE_TTL_SECONDS)
-            return Response(payload)
-
-        tickers = list(company_map.keys())
-
-        if connection.vendor == "postgresql":
-            # PostgreSQL DISTINCT ON is significantly faster for "latest row per ticker".
-            latest_prices = (
-                Price.objects
-                .filter(ticker__in=tickers)
-                .order_by('ticker', '-date')
-                .distinct('ticker')
-                .values('ticker', 'close')
-            )
-
-            past_prices = (
-                Price.objects
-                .filter(ticker__in=tickers, date__lte=lookback_date)
-                .order_by('ticker', '-date')
-                .distinct('ticker')
-                .values('ticker', 'close')
-            )
-
-            latest_close_by_ticker = {
-                row['ticker']: row['close'] for row in latest_prices
-            }
-            past_close_by_ticker = {
-                row['ticker']: row['close'] for row in past_prices
-            }
-
-            latest_with_past_prices = [
-                {
-                    'ticker': ticker,
-                    'close': latest_close_by_ticker.get(ticker),
-                    'past_close': past_close_by_ticker.get(ticker),
-                }
-                for ticker in tickers
-            ]
-        else:
-            latest_pk_subquery = Price.objects.filter(
-                ticker=OuterRef('ticker')
-            ).order_by('-date').values('pk')[:1]
-
-            past_close_subquery = Price.objects.filter(
-                ticker=OuterRef('ticker'),
-                date__lte=lookback_date,
-            ).order_by('-date').values('close')[:1]
-
-            latest_with_past_prices = Price.objects.filter(
-                pk=Subquery(latest_pk_subquery),
-                ticker__in=tickers,
-            ).annotate(
-                past_close=Subquery(past_close_subquery)
-            ).values('ticker', 'close', 'past_close')
+        latest_with_past_prices = company_queryset.annotate(
+            latest_close=Subquery(latest_close_subquery),
+            past_close=Subquery(past_close_subquery),
+        ).values('ticker', 'industry', 'latest_close', 'past_close')
 
         performance_by_industry = {}
         for item in latest_with_past_prices:
-            ticker = item.get('ticker')
-            industry = company_map.get(ticker)
-            latest_close = item.get('close')
+            industry = self._normalize_industry(item.get('industry'))
+            latest_close = item.get('latest_close')
             past_close = item.get('past_close')
 
             if not industry or latest_close is None or past_close in (None, 0):
@@ -396,7 +350,6 @@ def get_price_by_ticker(request):
     serializer = PriceSerilizer(prices, many=True)
 
     return  Response(serializer.data)
-
 
 
 
