@@ -1,5 +1,6 @@
 from django.contrib.auth.tokens import default_token_generator
 import smtplib
+import logging
 from urllib.parse import quote
 from django.conf import settings
 from django.utils.html import format_html
@@ -7,6 +8,7 @@ from django.utils.html import format_html
 from django.contrib.auth import login
 from django.core.mail import send_mail
 from django.http import HttpResponse, HttpResponseRedirect
+from django.urls import reverse
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from rest_framework import generics, status
@@ -19,6 +21,20 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from .models import Profile
 from .serializers import PasswordResetRequestSerializer, PasswordResetConfirmSerializer, ProfileSerializer
 from .tokens import account_activation_token
+
+
+logger = logging.getLogger(__name__)
+
+
+def log_email_failure(operation, exc):
+    # Do not log provider messages: they may contain recipients or email content.
+    logger.error(
+        'Email delivery failed: operation=%s error=%s smtp_code=%s errno=%s '
+        'host=%s port=%s username_configured=%s password_configured=%s',
+        operation, type(exc).__name__, getattr(exc, 'smtp_code', None),
+        getattr(exc, 'errno', None), settings.EMAIL_HOST, settings.EMAIL_PORT,
+        bool(settings.EMAIL_HOST_USER), bool(settings.EMAIL_HOST_PASSWORD),
+    )
 
 
 class IsSelfOrStaff(BasePermission):
@@ -40,7 +56,8 @@ class ProfileListCreateView(generics.ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         try:
             return super().create(request, *args, **kwargs)
-        except (smtplib.SMTPException, OSError):
+        except (smtplib.SMTPException, OSError) as exc:
+            log_email_failure('signup', exc)
             return Response(
                 {'detail': 'We could not send your activation email. Please try again later.'},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -70,6 +87,38 @@ def activate(request, uidb64, token):
         ))
 
     return HttpResponse("invalid token")
+
+
+class ResendActivationView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        users = Profile.objects.filter(
+            email__iexact=serializer.validated_data['email'], is_active=False,
+        )
+        for user in users:
+            path = reverse('users:activate', kwargs={
+                'uidb64': urlsafe_base64_encode(force_bytes(user.pk)),
+                'token': account_activation_token.make_token(user),
+            })
+            try:
+                send_mail(
+                    'Activate your TradeZen account',
+                    f'Activate your account: {request.build_absolute_uri(path)}',
+                    settings.DEFAULT_FROM_EMAIL,
+                    [user.email],
+                    fail_silently=False,
+                )
+            except (smtplib.SMTPException, OSError) as exc:
+                log_email_failure('resend_activation', exc)
+                return Response(
+                    {'detail': 'Unable to send the activation email. Please try again later.'},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+        return Response({'message': 'If this email belongs to an inactive account, a new activation link has been sent. Check your inbox and spam folder.'})
 
 
 class LoginAPIView(generics.GenericAPIView):
@@ -136,7 +185,8 @@ class PasswordResetRequestView(APIView):
                 [user.email],
                 fail_silently=False,
             )
-        except (smtplib.SMTPException, OSError):
+        except (smtplib.SMTPException, OSError) as exc:
+            log_email_failure('password_reset', exc)
             return Response(
                 {'detail': 'Unable to send the reset email. Please try again later.'},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,

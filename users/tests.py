@@ -1,6 +1,6 @@
 import re
 from unittest.mock import patch
-from smtplib import SMTPException
+from smtplib import SMTPException, SMTPAuthenticationError
 from django.core import mail
 from django.test import override_settings
 from rest_framework.test import APITestCase
@@ -50,6 +50,69 @@ class SignupTests(APITestCase):
         self.assertEqual(response.status_code, 503)
         self.assertEqual(Profile.objects.count(), 0)
         mocked_send.assert_called_once()
+
+
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend', FRONTEND_URL='https://app.example.com')
+class ResendActivationTests(APITestCase):
+    def setUp(self):
+        self.user = Profile.objects.create_user(
+            email='migrated@example.com', password='River!Orbit7259',
+            is_active=False, cash_position=123,
+        )
+
+    def test_fresh_link_activates_existing_account_and_allows_login(self):
+        response = self.client.post('/users/resend-activation/', {'email': 'MIGRATED@example.com'}, secure=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 1)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.is_active)
+        path = re.search(r'https://testserver(/users/activate/\S+)', mail.outbox[0].body).group(1)
+        self.assertEqual(self.client.get(path).status_code, 200)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.is_active)
+        self.assertEqual(self.user.cash_position, 123)
+        self.assertEqual(Profile.objects.count(), 1)
+        self.assertEqual(self.client.post('/users/login/', {
+            'email': self.user.email, 'password': 'River!Orbit7259',
+        }).status_code, 200)
+
+    def test_active_and_unknown_accounts_receive_same_response_without_email(self):
+        known = self.client.post('/users/resend-activation/', {'email': self.user.email})
+        mail.outbox.clear()
+        self.user.is_active = True
+        self.user.save(update_fields=['is_active'])
+        for email in [self.user.email, 'unknown@example.com']:
+            response = self.client.post('/users/resend-activation/', {'email': email})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data, known.data)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_invalid_email(self):
+        for payload in [{}, {'email': 'invalid'}]:
+            self.assertEqual(self.client.post('/users/resend-activation/', payload).status_code, 400)
+        self.assertEqual(len(mail.outbox), 0)
+
+    @patch('users.views.send_mail', side_effect=SMTPException('Unavailable'))
+    def test_delivery_failure_keeps_account_inactive(self, mocked_send):
+        response = self.client.post('/users/resend-activation/', {'email': self.user.email})
+        self.assertEqual(response.status_code, 503)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.is_active)
+        self.assertTrue(self.user.check_password('River!Orbit7259'))
+
+    def test_delivery_errors_log_diagnostics_without_provider_message(self):
+        for exc in [SMTPAuthenticationError(535, b'private provider message'), TimeoutError('private timeout message')]:
+            with self.subTest(error=type(exc).__name__), patch('users.views.send_mail', side_effect=exc):
+                with self.assertLogs('users.views', level='ERROR') as logs:
+                    response = self.client.post('/users/resend-activation/', {'email': self.user.email})
+                self.assertEqual(response.status_code, 503)
+                output = ' '.join(logs.output)
+                self.assertIn('operation=resend_activation', output)
+                self.assertIn(type(exc).__name__, output)
+                self.assertNotIn('private', output)
+                self.assertNotIn(self.user.email, output)
+                if isinstance(exc, SMTPAuthenticationError):
+                    self.assertIn('smtp_code=535', output)
 
 
 @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend', FRONTEND_URL='https://app.example.com')
