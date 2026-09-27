@@ -1,6 +1,12 @@
+from django.contrib.auth.tokens import default_token_generator
+import smtplib
+from urllib.parse import quote
+from django.conf import settings
+from django.utils.html import format_html
+
 from django.contrib.auth import login
 from django.core.mail import send_mail
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseRedirect
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from rest_framework import generics, status
@@ -11,7 +17,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import Profile
-from .serializers import PasswordResetRequestSerializer, ProfileSerializer
+from .serializers import PasswordResetRequestSerializer, PasswordResetConfirmSerializer, ProfileSerializer
 from .tokens import account_activation_token
 
 
@@ -31,6 +37,15 @@ class ProfileListCreateView(generics.ListCreateAPIView):
             return [AllowAny()]
         return [IsAdminUser()]
 
+    def create(self, request, *args, **kwargs):
+        try:
+            return super().create(request, *args, **kwargs)
+        except (smtplib.SMTPException, OSError):
+            return Response(
+                {'detail': 'We could not send your activation email. Please try again later.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
 
 class ProfileDetails(generics.RetrieveUpdateDestroyAPIView):
     queryset = Profile.objects.all()
@@ -49,13 +64,10 @@ def activate(request, uidb64, token):
         user.is_active = True
         user.save()
 
-        login_url = "http://localhost:8000/login"
-        return HttpResponse(
-            f""" <HR> <BR><h1>The Acccount activated successfully. Thank you for registering trade zone.<h1>
-                            <h2> Please click  <a href=\"{login_url}\">here</a> to login </h2>
-
-                            """
-        )
+        return HttpResponse(format_html(
+            '<h1>Your account is activated.</h1><p><a href="{}">Return to TradeZen to log in</a></p>',
+            settings.FRONTEND_URL,
+        ))
 
     return HttpResponse("invalid token")
 
@@ -72,12 +84,15 @@ class LoginAPIView(generics.GenericAPIView):
             raise AuthenticationFailed("Email and password are required.")
 
         try:
-            user = Profile.objects.get(email=email)
+            user = Profile.objects.get(email__iexact=email.strip())
         except Profile.DoesNotExist as exc:
             raise AuthenticationFailed("Invalid credentials.") from exc
 
         if not user.check_password(password):
             raise AuthenticationFailed("Invalid credentials.")
+
+        if not user.is_active:
+            raise AuthenticationFailed("Please activate your account using the link in your email before logging in.")
 
         refresh = RefreshToken.for_user(user)
 
@@ -101,7 +116,7 @@ class PasswordResetRequestView(APIView):
         email = serializer.validated_data["email"]
 
         try:
-            user = Profile.objects.get(email=email)
+            user = Profile.objects.get(email__iexact=email)
         except Profile.DoesNotExist:
             # Do not leak whether an account exists.
             return Response(
@@ -109,18 +124,23 @@ class PasswordResetRequestView(APIView):
                 status=status.HTTP_200_OK,
             )
 
-        token = account_activation_token.make_token(user)
+        token = default_token_generator.make_token(user)
         uid = urlsafe_base64_encode(force_bytes(user.pk))
-        reset_url = f"users/password-reset-confirm/{uid}/{token}"
-        reset_link = f"http://{request.get_host()}/{reset_url}"
+        reset_link = f"{settings.FRONTEND_URL.rstrip('/')}/reset-password/{uid}/{token}"
 
-        send_mail(
-            "Password Reset Request",
-            f"Click the link to reset your password: {reset_link}",
-            "from@example.com",
-            [email],
-            fail_silently=False,
-        )
+        try:
+            send_mail(
+                "Reset your TradeZen password",
+                f"Open this link to choose a new password: {reset_link}",
+                settings.DEFAULT_FROM_EMAIL,
+                [user.email],
+                fail_silently=False,
+            )
+        except (smtplib.SMTPException, OSError):
+            return Response(
+                {'detail': 'Unable to send the reset email. Please try again later.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
         return Response(
             {"message": "If an account exists, a password reset link has been sent."},
@@ -132,6 +152,16 @@ class PasswordResetRequestConfirmView(APIView):
     queryset = Profile.objects.all()
     permission_classes = [AllowAny]
 
+    def get(self, request, uidb64, token):
+        # Older emails linked directly to this API instead of the frontend form.
+        response = HttpResponseRedirect(
+            f"{settings.FRONTEND_URL.rstrip('/')}/reset-password/"
+            f"{quote(uidb64, safe='')}/{quote(token, safe='')}"
+        )
+        response['Cache-Control'] = 'no-store'
+        response['Referrer-Policy'] = 'no-referrer'
+        return response
+
     def post(self, request, uidb64, token):
         try:
             uid = force_str(urlsafe_base64_decode(uidb64))
@@ -139,19 +169,14 @@ class PasswordResetRequestConfirmView(APIView):
         except (TypeError, ValueError, OverflowError, Profile.DoesNotExist):
             user = None
 
-        if user is None or not account_activation_token.check_token(user, token):
-            return HttpResponse("invalid token")
+        if user is None or not default_token_generator.check_token(user, token):
+            return Response(
+                {'detail': 'This reset link is invalid or expired. Request a new link.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        password1 = request.data.get("password1")
-        password2 = request.data.get("password2")
-
-        if password1 != password2:
-            return Response({"message": "Password don't match"}, status=status.HTTP_400_BAD_REQUEST)
-
-        user.set_password(password1)
-        user.save()
-
-        return HttpResponse(
-            """ <HR> <BR><h1> Your psssword was reset successfully <h1>
-                                """
-        )
+        serializer = PasswordResetConfirmSerializer(data=request.data, context={'user': user})
+        serializer.is_valid(raise_exception=True)
+        user.set_password(serializer.validated_data['password1'])
+        user.save(update_fields=['password'])
+        return Response({'message': 'Password updated. You can now log in with your new password.'})

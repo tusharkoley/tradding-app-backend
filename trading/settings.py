@@ -200,9 +200,12 @@ CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
 AUTH_USER_MODEL = 'users.Profile'
 
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', os.environ.get('EMAIL_HOST_USER') or 'noreply@tradezen.com')
+FRONTEND_URL = os.environ.get('FRONTEND_URL', CORS_ALLOWED_ORIGINS[0] if CORS_ALLOWED_ORIGINS else 'http://localhost:5173')
+EMAIL_TIMEOUT = 10
 EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 25
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD")

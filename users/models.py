@@ -1,30 +1,8 @@
 from django.db import models
-
-from PIL import Image
-
-from django.contrib.auth import get_user_model
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
-from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
-from django.utils.encoding import force_bytes, force_str
-from .tokens import account_activation_token
-
-from django.db import models
 from phonenumber_field.modelfields import PhoneNumberField
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
-import pdb
-from django.contrib.sites.shortcuts import get_current_site
-from django.core.mail import send_mail
-
-def create_reg_email(name, domain,uid, token):
-    message = f"""
-    Hi {name},
-    Your account has successfully created. Please click below link to activate your account
-
-    http://{domain}/users/activate/{uid}/{token}  
-
-    """
-    return message
 
 
 class ProfileManager(BaseUserManager):
@@ -35,34 +13,6 @@ class ProfileManager(BaseUserManager):
         user = self.model(email=email, **extra_fields) 
         user.set_password(password)
         user.save(using=self._db)
-
-        print('***sinside profile create')
-
-        subject = 'Activate your Account'
-        try:
-            f_name = extra_fields['first_name']
-            l_name = extra_fields['last_name']
-            name = f'{f_name} {l_name}'
-        except:
-            name = 'there'
-
-
-       
-        domain = 'localhost:8000'
-        uid =  urlsafe_base64_encode(force_bytes(user.pk))
-        token = account_activation_token.make_token(user)
-        message = create_reg_email(name=name, domain=domain,uid=uid,token=token)
-
-        print(f'***** email message {message}')
-
-
-        send_mail(
-            subject,
-            message,
-            "ingo@tradezen.com",
-            [email],
-            fail_silently=False,
-        )
 
         return user
 

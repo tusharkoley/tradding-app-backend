@@ -1,0 +1,1524 @@
+{
+  "info": {
+    "name": "TradeZen Backend API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "All registered application API methods from the local Django routes. Select a supplied environment, fill credentials and run requests individually. Includes destructive and balance-changing requests; do not run the whole collection against a live account. Admin HTML pages and automatic OPTIONS/HEAD variants are not listed. Remote code may differ. See README.md for signup 400 troubleshooting and known backend limitations."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Sign up",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                ""
+              ]
+            },
+            "description": "Public registration. Use a real, unused email and a strong password of at least 8 characters. Optional fields: middle_name, phone_number (international format). Omit empty phone numbers. Local code sends activation email and creates an inactive, non-staff account. A 400 response contains field errors; 503 means email delivery failed. Remote deployments may run older code.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Postman\",\n  \"last_name\": \"Tester\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code === 400) {",
+                  "  let errors;",
+                  "  try { errors = pm.response.json(); } catch (_) { errors = {response: \"Non-JSON response; inspect the response body.\"}; }",
+                  "  Object.keys(errors).forEach(function (field) {",
+                  "    pm.test(\"Sign-up validation: \" + field + \": \" + JSON.stringify(errors[field]), function () {",
+                  "      throw new Error(\"Inspect the response body and correct this field.\");",
+                  "    });",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Activate account",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/activate/{{activation_uid}}/{{activation_token}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "activate",
+                "{{activation_uid}}",
+                "{{activation_token}}",
+                ""
+              ]
+            },
+            "description": "Copy UID and token from the activation email. Returns HTML. HTTP 200 alone does not prove activation: invalid tokens also return 200.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Account activated\", function () { pm.expect(pm.response.text()).not.to.include(\"invalid token\"); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Login \u2014 save tokens and user ID",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/login/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "login",
+                ""
+              ]
+            },
+            "description": "Saves access_token, refresh_token and user_id to the selected environment. Activate the account first. No token-refresh endpoint is registered; log in again when access expires.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code === 200) {",
+                  "  const data = pm.response.json();",
+                  "  pm.test(\"Access and refresh tokens returned\", function () {",
+                  "    pm.expect(data.access).to.be.a(\"string\");",
+                  "    pm.expect(data.refresh).to.be.a(\"string\");",
+                  "  });",
+                  "  pm.environment.set(\"access_token\", data.access);",
+                  "  pm.environment.set(\"refresh_token\", data.refresh);",
+                  "  const CryptoJS = require(\"crypto-js\");",
+                  "  const payload = data.access.split(\".\")[1].replace(/-/g, \"+\").replace(/_/g, \"/\");",
+                  "  const claims = JSON.parse(CryptoJS.enc.Base64.parse(payload).toString(CryptoJS.enc.Utf8));",
+                  "  if (claims.user_id !== undefined) pm.environment.set(\"user_id\", String(claims.user_id));",
+                  "} else {",
+                  "  pm.environment.unset(\"access_token\");",
+                  "  pm.environment.unset(\"refresh_token\");",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Request password reset",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/password-reset/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "password-reset",
+                ""
+              ]
+            },
+            "description": "Sends a link to the frontend reset form. Returns the same message for known and unknown email addresses. Mail delivery failures return 503.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Confirm password reset",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/password-reset-confirm/{{reset_uid}}/{{reset_token}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "password-reset-confirm",
+                "{{reset_uid}}",
+                "{{reset_token}}",
+                ""
+              ]
+            },
+            "description": "Copy UID/token from the frontend reset link in the email. Requires matching strong passwords. Returns JSON; invalid, expired or already-used links return 400. After success, update the password environment variable before logging in again.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"password1\": \"{{new_password}}\",\n  \"password2\": \"{{new_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code === 200) pm.test(\"Password updated\", function () { pm.expect(pm.response.json().message).to.include(\"Password updated\"); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Profiles",
+      "item": [
+        {
+          "name": "List users \u2014 staff",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                ""
+              ]
+            },
+            "description": "Requires staff login. Profile responses currently omit numeric IDs; login extracts your own ID from the JWT."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Get profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "{{user_id}}"
+              ]
+            },
+            "description": "Self or staff only. No trailing slash."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Update profile fields",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "{{user_id}}"
+              ]
+            },
+            "description": "Self or staff only. Omit email unless changing it: the current duplicate check rejects the existing email. Do not update passwords here: the generic update path does not hash passwords. Use password reset.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Postman\",\n  \"last_name\": \"Tester\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Replace profile \u2014 known backend issue",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "{{user_id}}"
+              ]
+            },
+            "description": "Self or staff only. Included for route coverage. Current serializer rejects unchanged email and does not hash updated passwords. Do not run on an account you need; use PATCH for names and password reset for passwords.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"first_name\": \"Postman\",\n  \"last_name\": \"Tester\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Delete profile",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "{{user_id}}"
+              ]
+            },
+            "description": "Deletes the selected user. Self or staff only. Use a disposable account."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Companies",
+      "item": [
+        {
+          "name": "API root",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/stocks/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "stocks",
+                ""
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "List companies",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/stocks/companies/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "stocks",
+                "companies",
+                ""
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Get company",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/stocks/companies/{{company_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "stocks",
+                "companies",
+                "{{company_id}}",
+                ""
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Create companies \u2014 staff",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/stocks/companies/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "stocks",
+                "companies",
+                ""
+              ]
+            },
+            "description": "Expects a JSON array, even for one company. Uses the backend field spelling soctor. Saves the first created ID as company_id.",
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"ticker\": \"{{test_ticker}}\",\n    \"company_name\": \"Postman Test Company\",\n    \"soctor\": \"Technology\",\n    \"industry\": \"Software\",\n    \"industry_subgroup\": \"Application Software\",\n    \"description\": \"Disposable Postman test company\",\n    \"country\": \"United States\",\n    \"website\": \"https://example.com\",\n    \"address\": \"123 Test Street\"\n  }\n]",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code === 201) pm.environment.set(\"company_id\", String(pm.response.json()[0].id));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Replace company \u2014 staff",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/stocks/companies/{{company_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "stocks",
+                "companies",
+                "{{company_id}}",
+                ""
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ticker\": \"{{test_ticker}}\",\n  \"company_name\": \"Postman Test Company\",\n  \"soctor\": \"Technology\",\n  \"industry\": \"Software\",\n  \"industry_subgroup\": \"Application Software\",\n  \"description\": \"Disposable Postman test company\",\n  \"country\": \"United States\",\n  \"website\": \"https://example.com\",\n  \"address\": \"123 Test Street\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Update company \u2014 staff",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/stocks/companies/{{company_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "stocks",
+                "companies",
+                "{{company_id}}",
+                ""
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Updated through Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Delete company \u2014 staff",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/stocks/companies/{{company_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "stocks",
+                "companies",
+                "{{company_id}}",
+                ""
+              ]
+            },
+            "description": "Deletes the company and related records. Use disposable data."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Prices",
+      "item": [
+        {
+          "name": "Price history by ticker",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/stocks/company/{{ticker}}/prices/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "stocks",
+                "company",
+                "{{ticker}}",
+                "prices",
+                ""
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Latest prices",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/stocks/prices/latest/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "stocks",
+                "prices",
+                "latest",
+                ""
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Get price",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/stocks/company/prices/{{price_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "stocks",
+                "company",
+                "prices",
+                "{{price_id}}",
+                ""
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Create prices \u2014 staff, known handler bug",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/stocks/company/{{test_ticker}}/prices/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "stocks",
+                "company",
+                "{{test_ticker}}",
+                "prices",
+                ""
+              ]
+            },
+            "description": "Expects an array. Optional company field is a numeric company ID. Known bug: PriceList.post omits the ticker argument passed by the URL router, so this currently fails server-side. Expected status after fixing the backend is 201. ticker/date must be unique.",
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"ticker\": \"{{test_ticker}}\",\n    \"date\": \"{{price_date}}\",\n    \"open\": 100,\n    \"close\": 102,\n    \"high\": 105,\n    \"low\": 99,\n    \"volume\": 1000,\n    \"stock_splits\": 0,\n    \"dividends\": 0\n  }\n]",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "if (pm.response.code === 201) pm.environment.set(\"price_id\", String(pm.response.json()[0].id));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Replace price \u2014 staff",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/stocks/company/prices/{{price_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "stocks",
+                "company",
+                "prices",
+                "{{price_id}}",
+                ""
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ticker\": \"{{test_ticker}}\",\n  \"date\": \"{{price_date}}\",\n  \"open\": 100,\n  \"close\": 102,\n  \"high\": 105,\n  \"low\": 99,\n  \"volume\": 1000,\n  \"stock_splits\": 0,\n  \"dividends\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Update price \u2014 staff",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/stocks/company/prices/{{price_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "stocks",
+                "company",
+                "prices",
+                "{{price_id}}",
+                ""
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"close\": 103\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Delete price \u2014 staff",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/stocks/company/prices/{{price_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "stocks",
+                "company",
+                "prices",
+                "{{price_id}}",
+                ""
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Analytics",
+      "item": [
+        {
+          "name": "Latest technical indicators",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/stocks/technicals/latest/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "stocks",
+                "technicals",
+                "latest",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "rs_min",
+                  "value": "70",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Optional numeric rs_min filters industry relative strength.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Latest technical indicators by ticker",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/stocks/company/{{ticker}}/technicals/latest/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "stocks",
+                "company",
+                "{{ticker}}",
+                "technicals",
+                "latest",
+                ""
+              ]
+            },
+            "description": "Returns an empty object when no indicator exists.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Industry performance ranking",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/stocks/industries/performance/?months=3",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "stocks",
+                "industries",
+                "performance",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "months",
+                  "value": "3",
+                  "disabled": false
+                },
+                {
+                  "key": "country",
+                  "value": "United States",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "months must be 1, 3, 6, 9 or 12. Optional country filter.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Transactions",
+      "item": [
+        {
+          "name": "Buy shares",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/transactions/trade/{{user_id}}/{{ticker}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "transactions",
+                "trade",
+                "{{user_id}}",
+                "{{ticker}}",
+                ""
+              ]
+            },
+            "description": "Modifies portfolio and cash. Positive quantity buys; negative quantity sells. Price is supplied by the caller. Current transaction views do not enforce authentication or ownership.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 1,\n  \"price\": 100,\n  \"brokerage\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Sell shares",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/transactions/trade/{{user_id}}/{{ticker}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "transactions",
+                "trade",
+                "{{user_id}}",
+                "{{ticker}}",
+                ""
+              ]
+            },
+            "description": "Modifies portfolio and cash. Use disposable test data.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": -1,\n  \"price\": 100,\n  \"brokerage\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Deposit cash",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/transactions/transfer/{{user_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "transactions",
+                "transfer",
+                "{{user_id}}",
+                ""
+              ]
+            },
+            "description": "Positive amount deposits; negative amount withdraws. Modifies stored cash balance.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 1000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Withdraw cash",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/transactions/transfer/{{user_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "transactions",
+                "transfer",
+                "{{user_id}}",
+                ""
+              ]
+            },
+            "description": "Modifies stored cash balance.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": -100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Portfolio performance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/transactions/portfolio_ret/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "transactions",
+                "portfolio_ret",
+                "{{user_id}}"
+              ]
+            },
+            "description": "No trailing slash. Depends on external market-price service. Returns JSON text; response content type may be text/html."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    }
+  ]
+}
