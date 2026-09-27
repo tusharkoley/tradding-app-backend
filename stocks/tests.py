@@ -1,4 +1,5 @@
-from datetime import date
+from datetime import date, timedelta
+from io import StringIO
 from unittest.mock import Mock, patch
 
 from django.core.cache import cache
@@ -6,7 +7,92 @@ from django.core.management import CommandError, call_command
 from django.test import TestCase
 from django.urls import reverse
 
-from stocks.models import Company, Price
+from stocks.models import Company, Price, TechnicalIndicators
+
+
+class RelativeStrengthTests(TestCase):
+    def setUp(self):
+        cache.clear()
+
+    def add_prices(self, ticker, dates, closes):
+        Company.objects.create(ticker=ticker, company_name=ticker, industry='Software')
+        Price.objects.bulk_create([
+            Price(ticker=ticker, date=dt, open=close, high=close, low=close,
+                  close=close, volume=100, stock_splits=0, dividends=0)
+            for dt, close in zip(dates, closes)
+        ])
+
+    def compute(self, **kwargs):
+        call_command('compute_technicals', days=0, stdout=StringIO(), **kwargs)
+
+    def test_filtered_run_keeps_full_peer_ranking_and_own_trading_calendar(self):
+        dates = [date(2024, 1, 1) + timedelta(days=i * 2) for i in range(64)]
+        self.add_prices('AAA', dates, [100] * 63 + [120])
+        self.add_prices('BBB', dates, [100] * 63 + [150])
+        # Another exchange trades between these dates. It must not shorten
+        # AAA's 63-observation lookback or manufacture prices on its off days.
+        other_dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(127)]
+        self.add_prices('CCC', other_dates, [100] * 127)
+        self.compute(tickers=['AAA'])
+        self.assertEqual(set(TechnicalIndicators.objects.values_list('ticker', flat=True)), {'AAA'})
+        latest = TechnicalIndicators.objects.get(ticker='AAA', date=dates[-1])
+        self.assertAlmostEqual(latest.rs_industry, 200 / 3)
+        self.assertIsNone(TechnicalIndicators.objects.get(ticker='AAA', date=dates[-2]).rs_industry)
+        self.compute()
+        latest.refresh_from_db()
+        self.assertAlmostEqual(latest.rs_industry, 200 / 3)
+
+    def test_insufficient_history_and_invalid_closes_remain_unavailable(self):
+        dates = [date(2024, 1, 1) + timedelta(days=i) for i in range(64)]
+        self.add_prices('SHORT', dates[:63], [100] * 63)
+        self.add_prices('ZERO', dates, [0] + [100] * 63)
+        self.add_prices('VALID', dates, [100] * 64)
+        self.compute()
+        self.assertFalse(TechnicalIndicators.objects.filter(ticker__in=['SHORT', 'ZERO'], rs_industry__isnull=False).exists())
+        self.assertEqual(TechnicalIndicators.objects.get(ticker='VALID', date=dates[-1]).rs_industry, 100)
+
+    @patch('stocks.management.commands.compute_technicals.TechnicalIndicators.objects.bulk_create', side_effect=RuntimeError('DB failure'))
+    def test_failed_upsert_reports_failure(self, mocked_create):
+        self.add_prices('AAA', [date(2024, 1, 1)], [100])
+        with self.assertRaises(CommandError):
+            self.compute()
+
+    def test_latest_api_uses_newest_row_and_filters_after_selection(self):
+        for ticker, old_rs, new_rs in [('AAA', None, 95), ('BBB', 99, 40), ('CCC', 98, None)]:
+            TechnicalIndicators.objects.create(ticker=ticker, date=date(2024, 1, 1), rs_industry=old_rs)
+            TechnicalIndicators.objects.create(ticker=ticker, date=date(2024, 4, 1), rs_industry=new_rs)
+        response = self.client.get(reverse('technicals-latest'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual({row['ticker']: row['rs_industry'] for row in response.data}, {'AAA': 95, 'BBB': 40, 'CCC': None})
+        for row in response.data:
+            self.assertEqual(row['date'], '2024-04-01')
+        response = self.client.get(reverse('technicals-latest'), {'rs_min': 90})
+        self.assertEqual([row['ticker'] for row in response.data], ['AAA'])
+
+    def test_latest_prices_use_newest_date(self):
+        self.add_prices('AAA', [date(2024, 1, 1), date(2024, 4, 1)], [100, 120])
+        response = self.client.get(reverse('prices-latest'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data[0]['close'], 120)
+
+    def test_postgres_latest_query_retains_date_ordering_inside_subquery(self):
+        from django.db.backends.postgresql.base import DatabaseWrapper
+        from rest_framework.test import APIRequestFactory
+        from stocks.views import TechnicalIndicatorsLatestList
+
+        postgres = DatabaseWrapper({'NAME': 'unused'}, alias='sql_only')
+        captured = []
+
+        def capture_query(queryset, **kwargs):
+            captured.append(queryset.query.get_compiler(connection=postgres).as_sql()[0])
+            return Mock(data=[])
+
+        request = APIRequestFactory().get('/stocks/technicals/latest/', {'rs_min': 90})
+        with patch('stocks.views.connection.vendor', 'postgresql'), patch('stocks.views.TechnicalIndicatorsSerializer', side_effect=capture_query):
+            response = TechnicalIndicatorsLatestList.as_view()(request)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('DISTINCT ON', captured[0])
+        self.assertRegex(captured[0], r'ORDER BY U\d+\."ticker" ASC, U\d+\."date" DESC')
 
 
 class UpdatePricesEodhdCommandTests(TestCase):

@@ -96,7 +96,7 @@ class PriceLatestList(APIView):
     queryset = Price.objects.all()
 
     def get(self, request, format=None):
-        cache_key = "stocks:prices:latest:v1"
+        cache_key = "stocks:prices:latest:v2"
         cached_payload = cache.get(cache_key)
         if cached_payload is not None:
             return Response(cached_payload)
@@ -107,7 +107,6 @@ class PriceLatestList(APIView):
                 .order_by('ticker', '-date')
                 .distinct('ticker')
                 .values('ticker', 'date', 'close')
-                .order_by('ticker')
             )
         else:
             latest_pk_subquery = Price.objects.filter(
@@ -129,18 +128,21 @@ class TechnicalIndicatorsLatestList(APIView):
 
     def get(self, request, format=None):
         rs_min_raw = request.query_params.get('rs_min')
-        cache_key = f"stocks:technicals:latest:v1:rs_min={rs_min_raw if rs_min_raw is not None else 'all'}"
+        cache_key = f"stocks:technicals:latest:v2:rs_min={rs_min_raw if rs_min_raw is not None else 'all'}"
         cached_payload = cache.get(cache_key)
         if cached_payload is not None:
             return Response(cached_payload)
 
         if connection.vendor == "postgresql":
-            technicals = (
+            latest_ids = (
                 TechnicalIndicators.objects
                 .order_by('ticker', '-date')
                 .distinct('ticker')
-                .order_by('ticker')
+                .values('pk')
             )
+            # Select latest rows before applying RS filters; older high scores
+            # must not replace a latest low or unavailable score.
+            technicals = TechnicalIndicators.objects.filter(pk__in=Subquery(latest_ids)).order_by('ticker')
         else:
             latest_pk_subquery = TechnicalIndicators.objects.filter(
                 ticker=OuterRef('ticker')
@@ -350,7 +352,6 @@ def get_price_by_ticker(request):
     serializer = PriceSerilizer(prices, many=True)
 
     return  Response(serializer.data)
-
 
 
 
