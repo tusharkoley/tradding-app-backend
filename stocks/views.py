@@ -33,6 +33,9 @@ def api_root(request, format=None):
     })
 
 
+EOD_CACHE_TTL_SECONDS = 24 * 60 * 60
+
+
 class CompanyList(APIView):
     queryset = Company.objects.all()
     serializer_class = CompanySerializer
@@ -48,7 +51,7 @@ class CompanyList(APIView):
         companies = Company.objects.all()
         serializer = CompanySerializer(companies, many=True)
         payload = serializer.data
-        cache.set(cache_key, payload, 5 * 60)
+        cache.set(cache_key, payload, EOD_CACHE_TTL_SECONDS)
         return Response(payload)
     
     def post(self, request, format=None):
@@ -118,7 +121,7 @@ class PriceLatestList(APIView):
             ).order_by('ticker').values('ticker', 'date', 'close')
 
         payload = list(latest_prices)
-        cache.set(cache_key, payload, 5 * 60)
+        cache.set(cache_key, payload, EOD_CACHE_TTL_SECONDS)
         return Response(payload)
 
 
@@ -164,7 +167,7 @@ class TechnicalIndicatorsLatestList(APIView):
 
         serializer = TechnicalIndicatorsSerializer(technicals, many=True)
         payload = serializer.data
-        cache.set(cache_key, payload, 5 * 60)
+        cache.set(cache_key, payload, EOD_CACHE_TTL_SECONDS)
         return Response(payload)
 
 
@@ -194,7 +197,7 @@ class IndustryPerformanceRanking(APIView):
 
     ALLOWED_MONTHS = {1, 3, 6, 9, 12}
     queryset = Price.objects.all()
-    CACHE_TTL_SECONDS = 10 * 60
+    CACHE_TTL_SECONDS = EOD_CACHE_TTL_SECONDS
     COUNTRIES_CACHE_KEY = "industry_perf:countries:v1"
     INDUSTRY_NORMALIZATION_MAP = {
         'information technogoy': 'Information Technology',
