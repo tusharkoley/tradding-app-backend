@@ -87,3 +87,10 @@ class TechnicalIndicators(models.Model):
 
 
 
+
+
+class StockApiRateWindow(models.Model):
+    """Shared rolling request history, serialized by a database row lock."""
+    client_key = models.CharField(max_length=64, primary_key=True)
+    requests = models.JSONField(default=list)
+    updated_at = models.DateTimeField(auto_now=True, db_index=True)

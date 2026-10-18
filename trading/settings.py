@@ -70,14 +70,15 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "stocks.api_security.StockApiOriginMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
+    "stocks.api_security.StockApiSecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    'corsheaders.middleware.CorsMiddleware', 
-    'django.middleware.common.CommonMiddleware',
 
 ]
 
@@ -185,16 +186,15 @@ REST_FRAMEWORK = {
     },
 }
 
-# Comma-separated frontend origins, e.g.
-# FRONTEND_ORIGINS=https://your-app.vercel.app,https://www.yourdomain.com
-_frontend_origins = os.environ.get("FRONTEND_ORIGINS", "http://localhost:5173")
-CORS_ALLOWED_ORIGINS = [
-    origin.strip().rstrip("/")
-    for origin in _frontend_origins.split(",")
-    if origin.strip()
-]
-
-# Keep CSRF trusted origins aligned for browser-based POST requests.
+# Production stock API access is restricted to this exact browser origin.
+# Local development can explicitly override it; never use a wildcard.
+STOCK_API_ALLOWED_ORIGIN = os.environ.get("STOCK_API_ALLOWED_ORIGIN", "https://tradezens.com").rstrip("/")
+# Railway's public edge supplies X-Real-IP. Enable only behind that trusted edge.
+STOCK_API_TRUST_RAILWAY_PROXY = os.environ.get(
+    "STOCK_API_TRUST_RAILWAY_PROXY", "true" if os.environ.get("RAILWAY_ENVIRONMENT_ID") else "false"
+).lower() == "true"
+CORS_ALLOWED_ORIGINS = [STOCK_API_ALLOWED_ORIGIN]
+CORS_ALLOW_ALL_ORIGINS = False
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
 
 AUTH_USER_MODEL = 'users.Profile'
