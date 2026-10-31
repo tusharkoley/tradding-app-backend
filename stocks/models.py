@@ -45,6 +45,56 @@ class Price(models.Model):
         ]
 
 
+class StockSplit(models.Model):
+    """An effective-date split; ratio is new shares per old share (4 for 4:1)."""
+
+    ticker = models.CharField(max_length=20)
+    date = models.DateField(help_text="First trading date on the post-split basis")
+    ratio = models.DecimalField(max_digits=24, decimal_places=12)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["ticker", "date"], name="unique_stock_split_ticker_date"),
+            models.CheckConstraint(condition=models.Q(ratio__gt=0), name="stock_split_ratio_positive"),
+        ]
+        indexes = [models.Index(fields=["ticker", "-date"])]
+
+    def __str__(self):
+        return f"{self.ticker} {self.date} ({self.ratio}:1)"
+
+
+class SplitAdjustedPrice(models.Model):
+    """Stored split-only OHLC, with ticker/date available through the raw price.
+
+    adjusted OHLC = raw OHLC * adjustment_factor. Rebuild from raw prices
+    when split history changes; this model does not apply adjustments itself.
+    Volume is intentionally omitted: the EODHD source already adjusts it.
+    """
+
+    price = models.OneToOneField(
+        Price, on_delete=models.CASCADE, related_name="split_adjusted_price",
+    )
+    open = models.FloatField()
+    high = models.FloatField()
+    low = models.FloatField()
+    close = models.FloatField()
+    adjustment_factor = models.FloatField(
+        help_text="Multiplier for raw OHLC; 0.25 for a subsequent 4-for-1 split",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(adjustment_factor__gt=0),
+                name="split_adjusted_factor_positive",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Split-adjusted price {self.price_id}"
+
+
 class TechnicalIndicators(models.Model):
     """
     Pre-computed technical indicators stored per ticker per date.

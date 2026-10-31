@@ -53,3 +53,34 @@ Validate the restrictions without network/database access:
 ```sh
 .venv/bin/python backend/manage.py test stocks.test_api_security --noinput
 ```
+
+# Split-adjusted price backfill
+
+`StockSplit` stores complete effective-date split history; `SplitAdjustedPrice` stores split-only OHLC linked to each raw `Price`. Raw OHLC must be unadjusted EODHD prices. Verify older Yahoo imports before processing them: already-adjusted rows would be adjusted twice. This command does not replace raw data, update indicators, or switch chart/API consumers.
+
+Set `EODHD_API_KEY` in the existing backend environment. First preview one stored ticker (use its exact database spelling):
+
+```sh
+.venv/bin/python backend/manage.py backfill_split_adjusted_prices --tickers AAPL --dry-run
+.venv/bin/python backend/manage.py backfill_split_adjusted_prices --tickers AAPL
+```
+
+Use `AAPL.US` instead if that is how it is stored. To process all tickers with prices:
+
+```sh
+.venv/bin/python backend/manage.py backfill_split_adjusted_prices --sleep 0.5
+```
+
+Each ticker fetches its full history from `GET /api/splits/{symbol}?fmt=json` (no date window). A successful response replaces that ticker's split records, including corrections/removals, and upserts its adjusted OHLC in the same transaction. An empty array means no splits. Invalid responses stop the command without changing that ticker; earlier completed tickers remain committed. Re-running is safe. Requests consume the provider's API quota; there is no automatic retry on errors.
+
+Only splits effective by today apply, and a split changes strictly earlier candles. Multiple ratios compound. EODHD volume is already split adjusted and is left on the raw row. Split parsing follows https://eodhd.com/financial-apis/api-splits-dividends (new shares / old shares).
+
+Run after the daily raw-price loader to fetch new splits and rebuild adjusted prices. To rebuild offline using already verified, complete `StockSplit` history:
+
+```sh
+.venv/bin/python backend/manage.py backfill_split_adjusted_prices --local-splits
+```
+
+Offline mode treats missing split records as no splits; use it only after establishing complete history. Do not run overlapping loaders/backfills for the same ticker. Charts and technical calculations still read raw prices until explicitly migrated to the adjusted table.
+
+The local HTTP fixture is based on EODHD's documented split response; a published owner mock was not used because Postman CLI is signed out. Orbit discovery did not find a matching historical endpoint; the provider documentation supplied the contract. For HTTP integration verification, run `postman simulation run postman/simulations/eodhd-splits.sim.yaml --port 4900 --output ndjson` and run `stocks.test_split_adjustment` with `SPLIT_SIMULATION_TEST=1`, `EODHD_API_KEY=fixture`, and `EODHD_BASE_URL=http://127.0.0.1:4900/eodhd/api` against a test database. Never point production jobs at the fixture.
