@@ -87,6 +87,7 @@ def send_alert(rows):
 
 
 def check(state, fetch=fetch_trades, send=send_alert, dry_run=False):
+    print('Fetching published share trades...', flush=True)
     current = fetch()
     previous = json.loads(state.read_text())['rows'] if state.exists() else None
     changes = changed_rows(previous, current) if previous is not None else []
@@ -94,11 +95,26 @@ def check(state, fetch=fetch_trades, send=send_alert, dry_run=False):
         print(f'Read {len(current)} trades; {len(changes)} updates; baseline exists: {previous is not None}. No email/state writes.')
         return
     if changes:
+        print(f'Sending email for {len(changes)} updates...', flush=True)
         send(changes)  # Do not advance state if delivery fails.
     temporary = state.with_suffix('.tmp')
     temporary.write_text(json.dumps({'rows': current}, indent=2) + '\n')
     temporary.replace(state)
     print(f'Baseline saved: {len(current)} trades.' if previous is None else f'Checked {len(current)} trades; emailed {len(changes)} updates.')
+
+
+def run(state, dry_run=False):
+    state = Path(state)
+    print(f'Naked Trader checker starting; state={state}; dry_run={dry_run}', flush=True)
+    state.parent.mkdir(parents=True, exist_ok=True)
+    with state.with_suffix('.lock').open('w') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print('Another checker is running; skipped.', flush=True)
+            return
+        check(state, dry_run=dry_run)
+    print('Naked Trader checker completed.', flush=True)
 
 
 def main():
@@ -107,14 +123,7 @@ def main():
     parser.add_argument('--state', type=Path, default=ROOT / '.naked_trader' / 'state.json')
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
-    args.state.parent.mkdir(parents=True, exist_ok=True)
-    with args.state.with_suffix('.lock').open('w') as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            print('Another checker is running; skipped.')
-            return
-        check(args.state, dry_run=args.dry_run)
+    run(args.state, dry_run=args.dry_run)
 
 
 if __name__ == '__main__':
