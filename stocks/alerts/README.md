@@ -55,8 +55,10 @@ are excluded, with eligible and excluded counts shown per market. Dividends are
 excluded. No raw/adjusted price mixing or currency conversion is performed.
 
 Prerequisites: load Company and Price data for all three countries, and run
-`backfill_split_adjusted_prices` after the raw-price loader, finishing before
-Friday 22:00 UK time. Confirm the underlying raw history is truly unadjusted;
+`run_daily_market_refresh`, which now includes split-adjusted price rebuilding,
+finishing before Friday 22:00 UK time. If running the raw loader separately,
+follow it with `backfill_split_adjusted_prices`.
+Confirm the underlying raw history is truly unadjusted;
 see `stocks/README.md`. The report does not download data or rebuild adjustments.
 If a market has no eligible stocks, no report is sent, the job fails visibly,
 and the slot stays retryable. Partial coverage is disclosed in the email. On a

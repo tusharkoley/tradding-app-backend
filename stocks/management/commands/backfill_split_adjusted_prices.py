@@ -57,6 +57,7 @@ class Command(BaseCommand):
     help = 'Fetch complete split history and rebuild adjusted prices from raw EODHD OHLC.'
 
     def add_arguments(self, parser):
+        parser.add_argument('--api-token', help='EODHD API token override')
         parser.add_argument('--tickers', nargs='+', help='Stored tickers; default: all tickers with prices')
         parser.add_argument('--dry-run', action='store_true', help='Fetch and validate without writing')
         parser.add_argument('--local-splits', action='store_true', help='Rebuild using existing StockSplit records without HTTP')
@@ -64,7 +65,7 @@ class Command(BaseCommand):
         parser.add_argument('--default-exchange', default='US')
 
     def handle(self, *args, **options):
-        token = os.environ.get('EODHD_API_KEY')
+        token = options.get('api_token') or os.environ.get('EODHD_API_KEY')
         if not options['local_splits'] and not token:
             raise CommandError('Set EODHD_API_KEY, or use --local-splits after loading verified split history.')
         if options['sleep'] < 0 or not math.isfinite(options['sleep']):

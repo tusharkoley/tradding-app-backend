@@ -3,7 +3,7 @@ from django.core.management import BaseCommand, CommandError, call_command
 
 
 class Command(BaseCommand):
-    help = "Run daily market refresh: EODHD prices -> technical indicators -> cache clear"
+    help = "Run daily market refresh: raw prices -> split-adjusted prices -> technical indicators -> cache clear"
 
     def add_arguments(self, parser):
         parser.add_argument("--api-token", required=False, help="EODHD API token override")
@@ -20,7 +20,7 @@ class Command(BaseCommand):
         parser.add_argument("--dry-run", action="store_true", help="Run without writing DB changes")
 
     def handle(self, *args, **options):
-        self.stdout.write(self.style.NOTICE("Step 1/3: Updating EOD prices from EODHD"))
+        self.stdout.write(self.style.NOTICE("Step 1/4: Updating EOD prices from EODHD"))
 
         update_kwargs = {
             "default_exchange": options["default_exchange"],
@@ -49,14 +49,34 @@ class Command(BaseCommand):
             )
             raise CommandError(f"Daily market refresh aborted because the price update failed: {exc}") from exc
 
-        self.stdout.write(self.style.NOTICE("Step 2/3: Recomputing technical indicators"))
+        self.stdout.write(self.style.NOTICE("Step 2/4: Refreshing split history and split-adjusted prices"))
+        split_kwargs = {
+            "default_exchange": options["default_exchange"],
+            "sleep": options["sleep"],
+            "dry_run": options["dry_run"],
+        }
+        if options.get("api_token"):
+            split_kwargs["api_token"] = options["api_token"]
+        try:
+            call_command("backfill_split_adjusted_prices", **split_kwargs)
+        except CommandError:
+            raise CommandError(
+                "Daily market refresh aborted because split-adjusted price refresh failed; "
+                "technical indicators and cache refresh were not run."
+            ) from None
+
+        if options["dry_run"]:
+            self.stdout.write("Dry run finished; skipping indicator writes and cache clear.")
+            return
+
+        self.stdout.write(self.style.NOTICE("Step 3/4: Recomputing technical indicators"))
         call_command(
             "compute_technicals",
             days=options["technicals_days"],
             benchmark=options["benchmark"],
         )
 
-        self.stdout.write(self.style.NOTICE("Step 3/3: Clearing response cache"))
+        self.stdout.write(self.style.NOTICE("Step 4/4: Clearing response cache"))
         cache.clear()
 
         self.stdout.write(self.style.SUCCESS("Daily market refresh completed"))

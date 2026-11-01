@@ -56,6 +56,15 @@ Validate the restrictions without network/database access:
 
 # Split-adjusted price backfill
 
+`run_daily_market_refresh` now runs raw-price loading, split-history refresh and
+split-adjusted price rebuilding, technical indicators, then cache clearing.
+Deploy this change to your daily refresh service; running `update_prices_eodhd`
+alone still updates only raw prices. Configure `EODHD_API_KEY` (or `--api-token`).
+The split step fetches history once per stored ticker and rebuilds its adjusted
+history, so allow additional API quota and runtime. A split-step failure stops
+the remaining pipeline; completed ticker updates remain committed for retry.
+`--dry-run` previews both price steps and skips indicator/cache writes.
+
 `StockSplit` stores complete effective-date split history; `SplitAdjustedPrice` stores split-only OHLC linked to each raw `Price`. Raw OHLC must be unadjusted EODHD prices. Verify older Yahoo imports before processing them: already-adjusted rows would be adjusted twice. This command does not replace raw data, update indicators, or switch chart/API consumers.
 
 Set `EODHD_API_KEY` in the existing backend environment. First preview one stored ticker (use its exact database spelling):
