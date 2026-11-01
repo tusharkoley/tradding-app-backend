@@ -1,0 +1,15 @@
+{
+  "timezone": "Europe/London",
+  "alerts": {
+    "naked_trader": {
+      "enabled": true,
+      "schedule": {"frequency": "daily", "hours": [10, 16]}
+    },
+    "weekly_performers": {
+      "enabled": true,
+      "schedule": {"frequency": "weekly", "weekday": 4, "hour": 22},
+      "markets": ["US", "UK", "India"],
+      "top_n": 10
+    }
+  }
+}

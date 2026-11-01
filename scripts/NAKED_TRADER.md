@@ -1,6 +1,11 @@
 Daily Naked Trader share alerts
 ==============================
 
+For a single Railway service running Naked Trader plus weekly market rankings,
+use the shared `python -u manage.py send_alerts --state-dir /data` command and
+hourly cron schedule instead. See `stocks/alerts/README.md` for configuration
+and migration steps. The individual command below remains supported.
+
 Railway deployment
 ------------------
 

@@ -2,18 +2,20 @@
 """Run once daily with cron; alert on new or updated published share trades."""
 import argparse
 from collections import Counter
-from email.message import EmailMessage
 import fcntl
 import json
 import os
 from pathlib import Path
-import smtplib
-import ssl
 import sys
 
 import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+
+if __package__:
+    from .alert_email import send_email
+else:
+    from alert_email import send_email
 
 ROOT = Path(__file__).resolve().parents[1]
 URL = 'https://www.nakedtrader.co.uk/trades.htm'
@@ -64,26 +66,13 @@ def changed_rows(previous, current):
     return changes
 
 
-def send_alert(rows):
-    recipient = os.environ.get('NAKED_TRADER_EMAIL_TO')
-    sender = os.environ.get('DEFAULT_FROM_EMAIL') or os.environ.get('EMAIL_HOST_USER')
-    if not recipient or not sender:
-        raise ValueError('Configure NAKED_TRADER_EMAIL_TO and EMAIL_HOST_USER')
-    message = EmailMessage()
-    message['Subject'] = f'Naked Trader: {len(rows)} new or updated share trade(s)'
-    message['From'] = sender
-    message['To'] = recipient
+def send_alert(rows, recipient=None):
     lines = ['New or updated rows in the published share trade log:', URL, '']
     for row in rows:
         lines.extend(f'{name}: {value or "—"}' for name, value in zip(HEADERS, row))
         lines.append('')
     lines.append('Updates may include corrections and target/stop changes. Publication can lag the actual trade.')
-    message.set_content('\n'.join(lines))
-    with smtplib.SMTP(os.environ.get('EMAIL_HOST', 'smtp.gmail.com'), int(os.environ.get('EMAIL_PORT', '587')), timeout=30) as smtp:
-        smtp.starttls(context=ssl.create_default_context())
-        if os.environ.get('EMAIL_HOST_USER'):
-            smtp.login(os.environ['EMAIL_HOST_USER'], os.environ['EMAIL_HOST_PASSWORD'])
-        smtp.send_message(message)
+    send_email(f'Naked Trader: {len(rows)} new or updated share trade(s)', '\n'.join(lines), recipient)
 
 
 def check(state, fetch=fetch_trades, send=send_alert, dry_run=False):
@@ -103,7 +92,7 @@ def check(state, fetch=fetch_trades, send=send_alert, dry_run=False):
     print(f'Baseline saved: {len(current)} trades.' if previous is None else f'Checked {len(current)} trades; emailed {len(changes)} updates.')
 
 
-def run(state, dry_run=False):
+def run(state, dry_run=False, recipient=None):
     state = Path(state)
     print(f'Naked Trader checker starting; state={state}; dry_run={dry_run}', flush=True)
     state.parent.mkdir(parents=True, exist_ok=True)
@@ -113,7 +102,7 @@ def run(state, dry_run=False):
         except BlockingIOError:
             print('Another checker is running; skipped.', flush=True)
             return
-        check(state, dry_run=dry_run)
+        check(state, send=lambda rows: send_alert(rows, recipient), dry_run=dry_run)
     print('Naked Trader checker completed.', flush=True)
 
 
