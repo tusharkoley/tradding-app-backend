@@ -81,7 +81,9 @@ class Command(BaseCommand):
         countries = dict(Company.objects.filter(ticker__in=tickers).values_list('ticker', 'country'))
         as_of = timezone.localdate()
         base_url = os.environ.get('EODHD_BASE_URL', 'https://eodhd.com/api').rstrip('/')
-        for ticker in tickers:
+        for index, ticker in enumerate(tickers, 1):
+            self.stdout.write(f'[{index}/{len(tickers)}] Processing split adjustments for {ticker}')
+            self.stdout.flush()
             if options['local_splits']:
                 events = dict(StockSplit.objects.filter(ticker=ticker).values_list('date', 'ratio'))
             else:

@@ -59,10 +59,10 @@ class Command(BaseCommand):
             split_kwargs["api_token"] = options["api_token"]
         try:
             call_command("backfill_split_adjusted_prices", **split_kwargs)
-        except CommandError:
+        except CommandError as exc:
             raise CommandError(
                 "Daily market refresh aborted because split-adjusted price refresh failed; "
-                "technical indicators and cache refresh were not run."
+                f"technical indicators and cache refresh were not run. Cause: {exc}"
             ) from None
 
         if options["dry_run"]:

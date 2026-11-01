@@ -17,8 +17,8 @@ class DailyRefreshTests(SimpleTestCase):
     @patch('stocks.management.commands.run_daily_market_refresh.cache')
     @patch('stocks.management.commands.run_daily_market_refresh.call_command')
     def test_failed_split_refresh_stops_pipeline(self, command, cache):
-        command.side_effect = [None, CommandError('Split refresh failed')]
-        with self.assertRaises(CommandError):
+        command.side_effect = [None, CommandError('XYZ.US: split-history HTTP 404; no changes made for this ticker.')]
+        with self.assertRaisesRegex(CommandError, 'XYZ.US: split-history HTTP 404'):
             call_command('run_daily_market_refresh', skip_checks=True)
         self.assertEqual(command.call_count, 2)
         cache.clear.assert_not_called()
