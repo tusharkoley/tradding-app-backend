@@ -3,6 +3,7 @@ from datetime import date
 from decimal import Decimal
 from io import StringIO
 from unittest import skipUnless
+from unittest.mock import patch
 
 from django.core.management import call_command
 from django.test import TestCase
@@ -70,6 +71,26 @@ class SplitAdjustmentTests(TestCase):
                       [{'date': '2020-08-31', 'split': '1/0'}]]:
             with self.assertRaises(ValueError):
                 parse_splits(value)
+
+    @patch('stocks.management.commands.backfill_split_adjusted_prices.requests.get', side_effect=AssertionError('Forex must not call splits API'))
+    def test_forex_rebuilds_without_request_or_adjustment(self, request):
+        raw = Price.objects.create(ticker='XAGUSD.FOREX', date='2026-10-30',
+            open=31, high=33, low=30, close=32, volume=0, dividends=0, stock_splits=0)
+        StockSplit.objects.create(ticker=raw.ticker, date='2026-10-31', ratio=4)
+        call_command('backfill_split_adjusted_prices', tickers=[raw.ticker], api_token='test', stdout=StringIO())
+        adjusted = SplitAdjustedPrice.objects.get(price=raw)
+        self.assertEqual([adjusted.open, adjusted.high, adjusted.low, adjusted.close], [31, 33, 30, 32])
+        self.assertEqual(adjusted.adjustment_factor, 1)
+        self.assertFalse(StockSplit.objects.filter(ticker=raw.ticker).exists())
+        request.assert_not_called()
+
+    @patch('stocks.management.commands.backfill_split_adjusted_prices.requests.get', side_effect=AssertionError('Forex must not call splits API'))
+    def test_forex_dry_run_preserves_existing_data(self, request):
+        raw = Price.objects.create(ticker='EURUSD.FOREX', date='2026-10-30',
+            open=1, high=1, low=1, close=1, volume=0, dividends=0, stock_splits=0)
+        call_command('backfill_split_adjusted_prices', tickers=[raw.ticker], api_token='test', dry_run=True, stdout=StringIO())
+        self.assertFalse(SplitAdjustedPrice.objects.filter(price=raw).exists())
+        request.assert_not_called()
 
     @skipUnless(os.environ.get('SPLIT_SIMULATION_TEST') == '1', 'Requires local Postman simulation')
     def test_http_backfill(self):

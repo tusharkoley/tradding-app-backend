@@ -84,7 +84,13 @@ class Command(BaseCommand):
         for index, ticker in enumerate(tickers, 1):
             self.stdout.write(f'[{index}/{len(tickers)}] Processing split adjustments for {ticker}')
             self.stdout.flush()
-            if options['local_splits']:
+            # Currency/spot-metal pairs do not have corporate stock splits.
+            # Still persist factor-1 rows so their adjusted charts stay complete.
+            is_forex = ticker.strip().upper().endswith('.FOREX')
+            if is_forex:
+                events = {}
+                self.stdout.write(f'{ticker}: forex instrument; using factor 1 without a split-history request')
+            elif options['local_splits']:
                 events = dict(StockSplit.objects.filter(ticker=ticker).values_list('date', 'ratio'))
             else:
                 symbol = build_eodhd_symbol(ticker, countries.get(ticker), options['default_exchange'])
@@ -102,7 +108,7 @@ class Command(BaseCommand):
             count = 0
             try:
                 with transaction.atomic():
-                    if not options['dry_run'] and not options['local_splits']:
+                    if not options['dry_run'] and (is_forex or not options['local_splits']):
                         # Full-history response is authoritative, including corrections/removals.
                         StockSplit.objects.filter(ticker=ticker).delete()
                         StockSplit.objects.bulk_create([StockSplit(ticker=ticker, date=day, ratio=ratio) for day, ratio in events.items()])
@@ -120,7 +126,7 @@ class Command(BaseCommand):
                 raise CommandError(f'{ticker}: {exc}; changes rolled back for this ticker.') from None
             verb = 'Would rebuild' if options['dry_run'] else 'Rebuilt'
             self.stdout.write(self.style.SUCCESS(f'{ticker}: {verb} {count} adjusted prices from {len(events)} splits'))
-            if not options['local_splits']:
+            if not options['local_splits'] and not is_forex:
                 time.sleep(options['sleep'])
 
     @staticmethod

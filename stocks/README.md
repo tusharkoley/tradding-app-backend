@@ -65,6 +65,12 @@ history, so allow additional API quota and runtime. A split-step failure stops
 the remaining pipeline; completed ticker updates remain committed for retry.
 `--dry-run` previews both price steps and skips indicator/cache writes.
 
+Stored tickers ending in `.FOREX` (including spot-metal pairs such as
+`XAGUSD.FOREX`) bypass the corporate split API and receive factor-1 adjusted
+OHLC rows. This keeps their charts populated without a failing split request.
+Equity HTTP errors still stop the pipeline; a 404 is not treated as empty split
+history for a stock. Completed ticker transactions remain saved after a failure.
+
 `StockSplit` stores complete effective-date split history; `SplitAdjustedPrice` stores split-only OHLC linked to each raw `Price`. Raw OHLC must be unadjusted EODHD prices. Verify older Yahoo imports before processing them: already-adjusted rows would be adjusted twice. This command does not replace raw data, update indicators, or switch chart/API consumers.
 
 Set `EODHD_API_KEY` in the existing backend environment. First preview one stored ticker (use its exact database spelling):
