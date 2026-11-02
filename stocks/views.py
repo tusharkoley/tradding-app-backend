@@ -6,7 +6,7 @@ from django.db import connection
 from django.core.cache import cache
 from datetime import timedelta
 from .models import Price, Company, TechnicalIndicators
-from .serializers import CompanySerializer, PriceSerilizer, CompanyListSerializer,PriceListSerializer, TechnicalIndicatorsSerializer
+from .serializers import CompanySerializer, PriceSerilizer, CompanyListSerializer,PriceListSerializer, TechnicalIndicatorsSerializer, HistoricalPriceSerializer
 from rest_framework import generics
 
 from rest_framework.decorators import api_view
@@ -76,9 +76,15 @@ class PriceList(APIView):
     permission_classes = [IsStaffOrReadOnly]
 
     def get(self, request, ticker, format=None):
-        prices = Price.objects.filter(ticker=ticker)
-        serializer = PriceSerilizer(prices, many=True)
-        return Response(serializer.data)
+        prices = list(Price.objects.filter(ticker=ticker).select_related('split_adjusted_price').order_by('date', 'id'))
+        if any(not hasattr(price, 'split_adjusted_price') for price in prices):
+            return Response(
+                {'detail': 'Split-adjusted price history is incomplete for this ticker. Please try again after the price refresh.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                headers={'Cache-Control': 'no-store'},
+            )
+        serializer = HistoricalPriceSerializer(prices, many=True)
+        return Response(serializer.data, headers={'X-Price-Basis': 'split-adjusted'})
     
     def post(self, request, format=None):
         serializer = PriceListSerializer(data=request.data)

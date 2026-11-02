@@ -49,8 +49,17 @@ class PriceListSerializer(serializers.ListSerializer):
         return instance
 
 
+class HistoricalPriceSerializer(PriceSerilizer):
+    """Chart response keeps raw-row metadata and uses split-adjusted OHLC."""
+
+    open = serializers.FloatField(source='split_adjusted_price.open', read_only=True)
+    high = serializers.FloatField(source='split_adjusted_price.high', read_only=True)
+    low = serializers.FloatField(source='split_adjusted_price.low', read_only=True)
+    close = serializers.FloatField(source='split_adjusted_price.close', read_only=True)
+
+
 class TechnicalIndicatorsSerializer(serializers.ModelSerializer):
     class Meta:
         model = TechnicalIndicators
         fields = '__all__'
-    
+

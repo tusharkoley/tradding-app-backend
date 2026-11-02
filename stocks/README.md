@@ -90,6 +90,27 @@ Run after the daily raw-price loader to fetch new splits and rebuild adjusted pr
 .venv/bin/python backend/manage.py backfill_split_adjusted_prices --local-splits
 ```
 
-Offline mode treats missing split records as no splits; use it only after establishing complete history. Do not run overlapping loaders/backfills for the same ticker. Charts and technical calculations still read raw prices until explicitly migrated to the adjusted table.
+Offline mode treats missing split records as no splits; use it only after establishing complete history. Do not run overlapping loaders/backfills for the same ticker. Technical calculations still read raw prices.
+
+# Chart historical price contract
+
+`GET /stocks/company/<ticker>/prices/` now reads persisted split-adjusted OHLC.
+The frontend chart already uses this route, so no frontend URL change is needed.
+The JSON array retains all existing Price fields: id, ticker, date, open, high,
+low, close, volume, dividends, stock_splits and company. Only OHLC changes basis;
+rows are ordered by date ascending. Metadata and volume retain their stored
+values. Successful responses include `X-Price-Basis: split-adjusted`.
+
+If any raw row lacks its adjusted counterpart, the route returns 503 with a
+detail message and `Cache-Control: no-store`, rather than silently omitting dates
+or mixing adjusted and raw candles. A ticker with no raw history still returns
+200 with an empty array. The daily refresh/backfill must complete for the ticker
+before its chart can load. No new migration is needed for this endpoint change.
+Raw-price write/detail endpoints, latest-price lists and technical indicators
+retain their existing behavior. Moving averages have not been recalculated on
+the adjusted basis in this change. Reload an open chart after deployment to
+discard the frontend's previously cached raw history.
+
+Regression tests: `python manage.py test stocks.test_chart_prices stocks.test_api_security`.
 
 The local HTTP fixture is based on EODHD's documented split response; a published owner mock was not used because Postman CLI is signed out. Orbit discovery did not find a matching historical endpoint; the provider documentation supplied the contract. For HTTP integration verification, run `postman simulation run postman/simulations/eodhd-splits.sim.yaml --port 4900 --output ndjson` and run `stocks.test_split_adjustment` with `SPLIT_SIMULATION_TEST=1`, `EODHD_API_KEY=fixture`, and `EODHD_BASE_URL=http://127.0.0.1:4900/eodhd/api` against a test database. Never point production jobs at the fixture.
