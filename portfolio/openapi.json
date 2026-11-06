@@ -1,0 +1,4103 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Trajen Portfolio Registry",
+    "version": "1.1.0",
+    "description": "Owner-isolated portfolio and asset registry with an immutable ledger and user-recorded manual valuations. See API.md for financial and concurrency semantics. No market-provider calls, FX conversion or dashboards. Financial values are decimal strings. Private responses use Cache-Control: private, no-store. Unknown/read-only body fields are rejected. No DELETE or transaction update methods. POST creation lacks idempotency keys: reconcile unknown outcomes before retrying."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8000",
+      "description": "Local development"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    },
+    {
+      "sessionAuth": []
+    }
+  ],
+  "paths": {
+    "/portfolio/portfolios/": {
+      "get": {
+        "operationId": "listPortfolios",
+        "summary": "List owned portfolios",
+        "tags": [
+          "Portfolio registry"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioPage"
+                },
+                "example": {
+                  "count": 1,
+                  "next": null,
+                  "previous": null,
+                  "results": [
+                    {
+                      "id": 1,
+                      "owner": 7,
+                      "name": "Personal",
+                      "base_currency": "GBP",
+                      "is_archived": false,
+                      "created_at": "2026-11-05T12:00:00Z",
+                      "updated_at": "2026-11-05T12:00:00Z"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission or CSRF failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing, foreign resource or invalid page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request throttled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": ""
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            },
+            "description": ""
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-insensitive search across documented fields."
+          },
+          {
+            "name": "ordering",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated ordering fields; prefix with - for descending."
+          },
+          {
+            "name": "is_archived",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": ""
+          },
+          {
+            "name": "base_currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "GBP",
+                "USD",
+                "INR"
+              ]
+            },
+            "description": ""
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createPortfolio",
+        "summary": "Create portfolio",
+        "tags": [
+          "Portfolio registry"
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Portfolio"
+                },
+                "example": {
+                  "id": 1,
+                  "owner": 7,
+                  "name": "Personal",
+                  "base_currency": "GBP",
+                  "is_archived": false,
+                  "created_at": "2026-11-05T12:00:00Z",
+                  "updated_at": "2026-11-05T12:00:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission or CSRF failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing, foreign resource or invalid page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request throttled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioWrite"
+              },
+              "example": {
+                "name": "Personal",
+                "base_currency": "GBP"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRFToken",
+            "in": "header",
+            "required": false,
+            "description": "Required for session-authenticated writes; not required for Bearer JWT.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/portfolio/portfolios/{id}/": {
+      "get": {
+        "operationId": "retrievePortfolio",
+        "summary": "Retrieve portfolio",
+        "tags": [
+          "Portfolio registry"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Portfolio"
+                },
+                "example": {
+                  "id": 1,
+                  "owner": 7,
+                  "name": "Personal",
+                  "base_currency": "GBP",
+                  "is_archived": false,
+                  "created_at": "2026-11-05T12:00:00Z",
+                  "updated_at": "2026-11-05T12:00:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission or CSRF failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing, foreign resource or invalid page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request throttled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      },
+      "put": {
+        "operationId": "updatePortfolio",
+        "summary": "Update portfolio; identity remains immutable",
+        "tags": [
+          "Portfolio registry"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Portfolio"
+                },
+                "example": {
+                  "id": 1,
+                  "owner": 7,
+                  "name": "Personal",
+                  "base_currency": "GBP",
+                  "is_archived": false,
+                  "created_at": "2026-11-05T12:00:00Z",
+                  "updated_at": "2026-11-05T12:00:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission or CSRF failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing, foreign resource or invalid page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request throttled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "X-CSRFToken",
+            "in": "header",
+            "required": false,
+            "description": "Required for session-authenticated writes; not required for Bearer JWT.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioWrite"
+              },
+              "example": {
+                "name": "Personal",
+                "base_currency": "GBP"
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "partialUpdatePortfolio",
+        "summary": "Partially update portfolio",
+        "tags": [
+          "Portfolio registry"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Portfolio"
+                },
+                "example": {
+                  "id": 1,
+                  "owner": 7,
+                  "name": "Personal",
+                  "base_currency": "GBP",
+                  "is_archived": false,
+                  "created_at": "2026-11-05T12:00:00Z",
+                  "updated_at": "2026-11-05T12:00:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission or CSRF failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing, foreign resource or invalid page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request throttled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "X-CSRFToken",
+            "in": "header",
+            "required": false,
+            "description": "Required for session-authenticated writes; not required for Bearer JWT.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioPatch"
+              },
+              "example": {
+                "name": "Renamed"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/portfolio/categories/": {
+      "get": {
+        "operationId": "listCategorys",
+        "summary": "List active database categories",
+        "tags": [
+          "Portfolio registry"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryPage"
+                },
+                "example": {
+                  "count": 1,
+                  "next": null,
+                  "previous": null,
+                  "results": [
+                    {
+                      "id": 1,
+                      "code": "stocks",
+                      "name": "Stocks",
+                      "is_liability": false,
+                      "transaction_policy": "position",
+                      "metadata_schema": {
+                        "type": "object",
+                        "properties": {
+                          "isin": {
+                            "type": "string",
+                            "maxLength": 12
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "supported_transaction_types": [
+                        "buy",
+                        "sell",
+                        "opening",
+                        "adjustment"
+                      ],
+                      "valuation_strategy": "manual_or_market"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission or CSRF failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing, foreign resource or invalid page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request throttled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": ""
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            },
+            "description": ""
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-insensitive search across documented fields."
+          },
+          {
+            "name": "ordering",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated ordering fields; prefix with - for descending."
+          },
+          {
+            "name": "is_liability",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": ""
+          }
+        ]
+      }
+    },
+    "/portfolio/categories/{id}/": {
+      "get": {
+        "operationId": "retrieveCategory",
+        "summary": "Retrieve category",
+        "tags": [
+          "Portfolio registry"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Category"
+                },
+                "example": {
+                  "id": 1,
+                  "code": "stocks",
+                  "name": "Stocks",
+                  "is_liability": false,
+                  "transaction_policy": "position",
+                  "metadata_schema": {
+                    "type": "object",
+                    "properties": {
+                      "isin": {
+                        "type": "string",
+                        "maxLength": 12
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "supported_transaction_types": [
+                    "buy",
+                    "sell",
+                    "opening",
+                    "adjustment"
+                  ],
+                  "valuation_strategy": "manual_or_market"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission or CSRF failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing, foreign resource or invalid page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request throttled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      }
+    },
+    "/portfolio/assets/": {
+      "get": {
+        "operationId": "listAssets",
+        "summary": "List owned assets",
+        "tags": [
+          "Portfolio registry"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetPage"
+                },
+                "example": {
+                  "count": 1,
+                  "next": null,
+                  "previous": null,
+                  "results": [
+                    {
+                      "id": 1,
+                      "portfolio": 1,
+                      "category": 1,
+                      "name": "Example shares",
+                      "currency": "GBP",
+                      "unit": "share",
+                      "company": null,
+                      "market_symbol": "",
+                      "valuation_method": "manual",
+                      "metadata": {},
+                      "is_archived": false,
+                      "created_at": "2026-11-05T12:00:00Z",
+                      "updated_at": "2026-11-05T12:00:00Z"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission or CSRF failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing, foreign resource or invalid page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request throttled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": ""
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            },
+            "description": ""
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-insensitive search across documented fields."
+          },
+          {
+            "name": "ordering",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated ordering fields; prefix with - for descending."
+          },
+          {
+            "name": "portfolio",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": ""
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": ""
+          },
+          {
+            "name": "category_code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": ""
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "GBP",
+                "USD",
+                "INR"
+              ]
+            },
+            "description": ""
+          },
+          {
+            "name": "is_archived",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": ""
+          },
+          {
+            "name": "valuation_method",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "manual",
+                "market"
+              ]
+            },
+            "description": ""
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createAsset",
+        "summary": "Create asset",
+        "tags": [
+          "Portfolio registry"
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                },
+                "example": {
+                  "id": 1,
+                  "portfolio": 1,
+                  "category": 1,
+                  "name": "Example shares",
+                  "currency": "GBP",
+                  "unit": "share",
+                  "company": null,
+                  "market_symbol": "",
+                  "valuation_method": "manual",
+                  "metadata": {},
+                  "is_archived": false,
+                  "created_at": "2026-11-05T12:00:00Z",
+                  "updated_at": "2026-11-05T12:00:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission or CSRF failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing, foreign resource or invalid page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request throttled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssetWrite"
+              },
+              "example": {
+                "portfolio": 1,
+                "category": 1,
+                "name": "Example shares",
+                "unit": "share",
+                "currency": "GBP"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRFToken",
+            "in": "header",
+            "required": false,
+            "description": "Required for session-authenticated writes; not required for Bearer JWT.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/portfolio/assets/{id}/": {
+      "get": {
+        "operationId": "retrieveAsset",
+        "summary": "Retrieve asset",
+        "tags": [
+          "Portfolio registry"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                },
+                "example": {
+                  "id": 1,
+                  "portfolio": 1,
+                  "category": 1,
+                  "name": "Example shares",
+                  "currency": "GBP",
+                  "unit": "share",
+                  "company": null,
+                  "market_symbol": "",
+                  "valuation_method": "manual",
+                  "metadata": {},
+                  "is_archived": false,
+                  "created_at": "2026-11-05T12:00:00Z",
+                  "updated_at": "2026-11-05T12:00:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission or CSRF failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing, foreign resource or invalid page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request throttled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      },
+      "put": {
+        "operationId": "updateAsset",
+        "summary": "Update asset; identity remains immutable",
+        "tags": [
+          "Portfolio registry"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                },
+                "example": {
+                  "id": 1,
+                  "portfolio": 1,
+                  "category": 1,
+                  "name": "Example shares",
+                  "currency": "GBP",
+                  "unit": "share",
+                  "company": null,
+                  "market_symbol": "",
+                  "valuation_method": "manual",
+                  "metadata": {},
+                  "is_archived": false,
+                  "created_at": "2026-11-05T12:00:00Z",
+                  "updated_at": "2026-11-05T12:00:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission or CSRF failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing, foreign resource or invalid page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request throttled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "X-CSRFToken",
+            "in": "header",
+            "required": false,
+            "description": "Required for session-authenticated writes; not required for Bearer JWT.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssetWrite"
+              },
+              "example": {
+                "portfolio": 1,
+                "category": 1,
+                "name": "Example shares",
+                "unit": "share",
+                "currency": "GBP"
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "partialUpdateAsset",
+        "summary": "Partially update asset",
+        "tags": [
+          "Portfolio registry"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                },
+                "example": {
+                  "id": 1,
+                  "portfolio": 1,
+                  "category": 1,
+                  "name": "Example shares",
+                  "currency": "GBP",
+                  "unit": "share",
+                  "company": null,
+                  "market_symbol": "",
+                  "valuation_method": "manual",
+                  "metadata": {},
+                  "is_archived": false,
+                  "created_at": "2026-11-05T12:00:00Z",
+                  "updated_at": "2026-11-05T12:00:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission or CSRF failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing, foreign resource or invalid page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request throttled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "X-CSRFToken",
+            "in": "header",
+            "required": false,
+            "description": "Required for session-authenticated writes; not required for Bearer JWT.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssetPatch"
+              },
+              "example": {
+                "name": "Renamed shares"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/portfolio/transactions/": {
+      "get": {
+        "operationId": "listTransactions",
+        "summary": "List owned transactions",
+        "tags": [
+          "Portfolio registry"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionPage"
+                },
+                "example": {
+                  "count": 1,
+                  "next": null,
+                  "previous": null,
+                  "results": [
+                    {
+                      "id": 1,
+                      "asset": 1,
+                      "kind": "buy",
+                      "transaction_date": "2026-11-05",
+                      "quantity": "10.000000000000",
+                      "unit_price": "2.000000000000",
+                      "amount": "20.00000000",
+                      "fee": "0.25000000",
+                      "currency": "GBP",
+                      "notes": "",
+                      "reversal_of": null,
+                      "correction_of": null,
+                      "created_at": "2026-11-05T12:00:00Z"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission or CSRF failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing, foreign resource or invalid page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request throttled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": ""
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            },
+            "description": ""
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-insensitive search across documented fields."
+          },
+          {
+            "name": "ordering",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated ordering fields; prefix with - for descending."
+          },
+          {
+            "name": "asset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": ""
+          },
+          {
+            "name": "portfolio",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": ""
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": ""
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "buy",
+                "sell",
+                "deposit",
+                "withdrawal",
+                "adjustment",
+                "opening"
+              ]
+            },
+            "description": ""
+          },
+          {
+            "name": "date_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": ""
+          },
+          {
+            "name": "date_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": ""
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createTransaction",
+        "summary": "Create transaction",
+        "tags": [
+          "Portfolio registry"
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                },
+                "example": {
+                  "id": 1,
+                  "asset": 1,
+                  "kind": "buy",
+                  "transaction_date": "2026-11-05",
+                  "quantity": "10.000000000000",
+                  "unit_price": "2.000000000000",
+                  "amount": "20.00000000",
+                  "fee": "0.25000000",
+                  "currency": "GBP",
+                  "notes": "",
+                  "reversal_of": null,
+                  "correction_of": null,
+                  "created_at": "2026-11-05T12:00:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "quantity": [
+                    "Insufficient holdings on 2026-11-05; short selling is not supported."
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission or CSRF failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing, foreign resource or invalid page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request throttled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransactionWrite"
+              },
+              "example": {
+                "asset": 1,
+                "kind": "buy",
+                "transaction_date": "2026-11-05",
+                "quantity": "10",
+                "unit_price": "2",
+                "amount": "20",
+                "fee": "0.25"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRFToken",
+            "in": "header",
+            "required": false,
+            "description": "Required for session-authenticated writes; not required for Bearer JWT.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/portfolio/transactions/{id}/": {
+      "get": {
+        "operationId": "retrieveTransaction",
+        "summary": "Retrieve transaction",
+        "tags": [
+          "Portfolio registry"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                },
+                "example": {
+                  "id": 1,
+                  "asset": 1,
+                  "kind": "buy",
+                  "transaction_date": "2026-11-05",
+                  "quantity": "10.000000000000",
+                  "unit_price": "2.000000000000",
+                  "amount": "20.00000000",
+                  "fee": "0.25000000",
+                  "currency": "GBP",
+                  "notes": "",
+                  "reversal_of": null,
+                  "correction_of": null,
+                  "created_at": "2026-11-05T12:00:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission or CSRF failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing, foreign resource or invalid page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request throttled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      }
+    },
+    "/portfolio/assets/{id}/archive/": {
+      "post": {
+        "operationId": "archiveAsset",
+        "summary": "Archive without deleting history (idempotent)",
+        "tags": [
+          "Portfolio registry"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                },
+                "example": {
+                  "id": 1,
+                  "portfolio": 1,
+                  "category": 1,
+                  "name": "Example shares",
+                  "currency": "GBP",
+                  "unit": "share",
+                  "company": null,
+                  "market_symbol": "",
+                  "valuation_method": "manual",
+                  "metadata": {},
+                  "is_archived": true,
+                  "created_at": "2026-11-05T12:00:00Z",
+                  "updated_at": "2026-11-05T12:00:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission or CSRF failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing, foreign resource or invalid page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request throttled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "X-CSRFToken",
+            "in": "header",
+            "required": false,
+            "description": "Required for session-authenticated writes; not required for Bearer JWT.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Empty"
+              },
+              "example": {}
+            }
+          }
+        }
+      }
+    },
+    "/portfolio/assets/{id}/summary/": {
+      "get": {
+        "operationId": "assetSummary",
+        "summary": "Read as-of holdings and ledger totals; no market valuation",
+        "tags": [
+          "Portfolio registry"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetSummary"
+                },
+                "example": {
+                  "asset": 1,
+                  "portfolio": 1,
+                  "category": 1,
+                  "category_code": "stocks",
+                  "name": "Example shares",
+                  "currency": "GBP",
+                  "unit": "share",
+                  "is_archived": false,
+                  "as_of": "2026-11-05",
+                  "quantity": "10.000000000000",
+                  "transaction_count": 1,
+                  "last_transaction_date": "2026-11-05",
+                  "net_recorded_amount": "20.00000000",
+                  "net_fees": "0.25000000"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission or CSRF failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing, foreign resource or invalid page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request throttled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Defaults to today."
+          }
+        ]
+      }
+    },
+    "/portfolio/transactions/{id}/reverse/": {
+      "post": {
+        "operationId": "reverseTransaction",
+        "summary": "Append an exact audited reversal if the final ledger stays nonnegative",
+        "tags": [
+          "Portfolio registry"
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Transaction"
+                },
+                "example": {
+                  "id": 2,
+                  "asset": 1,
+                  "kind": "buy",
+                  "transaction_date": "2026-11-05",
+                  "quantity": "-10.000000000000",
+                  "unit_price": "2.000000000000",
+                  "amount": "-20.00000000",
+                  "fee": "-0.25000000",
+                  "currency": "GBP",
+                  "notes": "Duplicate import",
+                  "reversal_of": 1,
+                  "correction_of": null,
+                  "created_at": "2026-11-05T12:00:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "quantity": [
+                    "Insufficient holdings on 2026-11-05; short selling is not supported."
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission or CSRF failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing, foreign resource or invalid page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request throttled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "X-CSRFToken",
+            "in": "header",
+            "required": false,
+            "description": "Required for session-authenticated writes; not required for Bearer JWT.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReversalWrite"
+              },
+              "example": {
+                "reason": "Duplicate import"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/portfolio/transactions/{id}/correct/": {
+      "post": {
+        "operationId": "correctTransaction",
+        "summary": "Atomically reverse and replace; validate combined ledger",
+        "tags": [
+          "Portfolio registry"
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Correction"
+                },
+                "example": {
+                  "reversal": {
+                    "id": 2,
+                    "asset": 1,
+                    "kind": "buy",
+                    "transaction_date": "2026-11-05",
+                    "quantity": "-10.000000000000",
+                    "unit_price": "2.000000000000",
+                    "amount": "-20.00000000",
+                    "fee": "-0.25000000",
+                    "currency": "GBP",
+                    "notes": "Duplicate import",
+                    "reversal_of": 1,
+                    "correction_of": null,
+                    "created_at": "2026-11-05T12:00:00Z"
+                  },
+                  "replacement": {
+                    "id": 3,
+                    "asset": 1,
+                    "kind": "buy",
+                    "transaction_date": "2026-11-05",
+                    "quantity": "12.000000000000",
+                    "unit_price": "2.000000000000",
+                    "amount": "24.00000000",
+                    "fee": "0.25000000",
+                    "currency": "GBP",
+                    "notes": "",
+                    "reversal_of": null,
+                    "correction_of": 1,
+                    "created_at": "2026-11-05T12:00:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "quantity": [
+                    "Insufficient holdings on 2026-11-05; short selling is not supported."
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission or CSRF failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing, foreign resource or invalid page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request throttled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "X-CSRFToken",
+            "in": "header",
+            "required": false,
+            "description": "Required for session-authenticated writes; not required for Bearer JWT.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorrectionWrite"
+              },
+              "example": {
+                "reason": "Quantity typo",
+                "changes": {
+                  "quantity": "12",
+                  "amount": "24"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/portfolio/holdings/": {
+      "get": {
+        "operationId": "listHoldings",
+        "summary": "List owned as-of quantities, including archived assets unless filtered",
+        "tags": [
+          "Portfolio registry"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HoldingPage"
+                },
+                "example": {
+                  "count": 1,
+                  "next": null,
+                  "previous": null,
+                  "results": [
+                    {
+                      "asset": 1,
+                      "portfolio": 1,
+                      "category": 1,
+                      "category_code": "stocks",
+                      "name": "Example shares",
+                      "currency": "GBP",
+                      "unit": "share",
+                      "is_archived": false,
+                      "as_of": "2026-11-05",
+                      "quantity": "10.000000000000",
+                      "transaction_count": 1,
+                      "last_transaction_date": "2026-11-05"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission or CSRF failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing, foreign resource or invalid page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request throttled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": ""
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            },
+            "description": ""
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-insensitive search across documented fields."
+          },
+          {
+            "name": "ordering",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated ordering fields; prefix with - for descending."
+          },
+          {
+            "name": "portfolio",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": ""
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": ""
+          },
+          {
+            "name": "category_code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": ""
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "GBP",
+                "USD",
+                "INR"
+              ]
+            },
+            "description": ""
+          },
+          {
+            "name": "is_archived",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": ""
+          },
+          {
+            "name": "valuation_method",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "manual",
+                "market"
+              ]
+            },
+            "description": ""
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Defaults to today; includes entries effective on or before this date."
+          }
+        ]
+      }
+    },
+    "/portfolio/assets/{id}/valuations/": {
+      "get": {
+        "operationId": "listAssetValuations",
+        "summary": "List immutable recorded valuation revisions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValuationPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or CSRF failure"
+          },
+          "404": {
+            "description": "Missing or foreign resource"
+          },
+          "429": {
+            "description": "Throttled"
+          }
+        }
+      },
+      "post": {
+        "operationId": "recordAssetValuation",
+        "summary": "Append a manual valuation; revision assigned atomically",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValuationWrite"
+              },
+              "example": {
+                "valued_at": "2026-11-05T00:00:00Z",
+                "basis": "unit",
+                "value": "25",
+                "source": "Statement"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recorded valuation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Valuation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Permission or CSRF failure"
+          },
+          "404": {
+            "description": "Missing or foreign resource"
+          },
+          "429": {
+            "description": "Throttled"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Use access from existing POST /users/login/."
+      },
+      "sessionAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "sessionid",
+        "description": "Existing Django session; CSRF token required on writes."
+      }
+    },
+    "schemas": {
+      "Portfolio": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "owner": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "base_currency": {
+            "type": "string",
+            "enum": [
+              "GBP",
+              "USD",
+              "INR"
+            ]
+          },
+          "is_archived": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "owner",
+          "name",
+          "base_currency",
+          "is_archived",
+          "created_at",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "PortfolioWrite": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "base_currency": {
+            "type": "string",
+            "enum": [
+              "GBP",
+              "USD",
+              "INR"
+            ]
+          },
+          "is_archived": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "PortfolioPatch": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "base_currency": {
+            "type": "string",
+            "enum": [
+              "GBP",
+              "USD",
+              "INR"
+            ]
+          },
+          "is_archived": {
+            "type": "boolean"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "Category": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "is_liability": {
+            "type": "boolean"
+          },
+          "transaction_policy": {
+            "type": "string",
+            "enum": [
+              "position",
+              "cash"
+            ]
+          },
+          "metadata_schema": {
+            "type": "object"
+          },
+          "supported_transaction_types": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "buy",
+                "sell",
+                "deposit",
+                "withdrawal",
+                "adjustment",
+                "opening"
+              ]
+            }
+          },
+          "valuation_strategy": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "market",
+              "manual_or_market"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "is_liability",
+          "transaction_policy",
+          "metadata_schema",
+          "supported_transaction_types",
+          "valuation_strategy"
+        ],
+        "additionalProperties": false
+      },
+      "AssetWrite": {
+        "type": "object",
+        "properties": {
+          "portfolio": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "category": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "GBP",
+              "USD",
+              "INR"
+            ]
+          },
+          "unit": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30
+          },
+          "company": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "market_symbol": {
+            "type": "string",
+            "maxLength": 50
+          },
+          "valuation_method": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "market"
+            ]
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Validated against category.metadata_schema. Additional fields depend on the category."
+          },
+          "opening_transaction": {
+            "$ref": "#/components/schemas/OpeningTransaction"
+          },
+          "initial_valuation": {
+            "$ref": "#/components/schemas/ValuationWrite"
+          }
+        },
+        "required": [
+          "portfolio",
+          "category",
+          "name"
+        ],
+        "additionalProperties": false
+      },
+      "AssetPatch": {
+        "type": "object",
+        "properties": {
+          "portfolio": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "category": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "GBP",
+              "USD",
+              "INR"
+            ]
+          },
+          "unit": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30
+          },
+          "company": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "market_symbol": {
+            "type": "string",
+            "maxLength": 50
+          },
+          "valuation_method": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "market"
+            ]
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Validated against category.metadata_schema. Additional fields depend on the category."
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      },
+      "Asset": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "portfolio": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "category": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "GBP",
+              "USD",
+              "INR"
+            ]
+          },
+          "unit": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 30
+          },
+          "company": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "market_symbol": {
+            "type": "string",
+            "maxLength": 50
+          },
+          "valuation_method": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "market"
+            ]
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Validated against category.metadata_schema. Additional fields depend on the category."
+          },
+          "is_archived": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "portfolio_name": {
+            "type": "string"
+          },
+          "portfolio_archived": {
+            "type": "boolean"
+          },
+          "category_definition": {
+            "$ref": "#/components/schemas/Category"
+          }
+        },
+        "required": [
+          "id",
+          "portfolio",
+          "category",
+          "name",
+          "currency",
+          "unit",
+          "company",
+          "market_symbol",
+          "valuation_method",
+          "metadata",
+          "is_archived",
+          "created_at",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "TransactionWrite": {
+        "type": "object",
+        "properties": {
+          "asset": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "buy",
+              "sell",
+              "deposit",
+              "withdrawal",
+              "adjustment",
+              "opening"
+            ]
+          },
+          "transaction_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "quantity": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d{1,16}(\\.\\d{1,12})?$"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "description": "Decimal string recommended. Up to 16 integer and 12 fractional digits. Transaction quantities must be nonzero."
+          },
+          "unit_price": {
+            "anyOf": [
+              {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^\\d{1,16}(\\.\\d{1,12})?$"
+                  },
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional nonnegative price; amount must reconcile at 8 decimal places."
+          },
+          "amount": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d{1,20}(\\.\\d{1,8})?$"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "description": "Decimal string recommended. Up to 20 integer and 8 fractional digits."
+          },
+          "fee": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{1,20}(\\.\\d{1,8})?$"
+              },
+              {
+                "type": "number",
+                "minimum": 0
+              }
+            ],
+            "description": "Nonnegative fee for original entries; defaults to zero."
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "GBP",
+              "USD",
+              "INR"
+            ],
+            "description": "Defaults to the asset currency; must match it."
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset",
+          "kind",
+          "transaction_date",
+          "quantity",
+          "amount"
+        ],
+        "additionalProperties": false
+      },
+      "Transaction": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "asset": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "buy",
+              "sell",
+              "deposit",
+              "withdrawal",
+              "adjustment",
+              "opening"
+            ]
+          },
+          "transaction_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^-?\\d+\\.\\d{12}$"
+          },
+          "unit_price": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+\\.\\d{12}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^-?\\d+\\.\\d{8}$"
+          },
+          "fee": {
+            "type": "string",
+            "pattern": "^-?\\d+\\.\\d{8}$"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "GBP",
+              "USD",
+              "INR"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          },
+          "reversal_of": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "correction_of": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "is_reversed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "asset",
+          "kind",
+          "transaction_date",
+          "quantity",
+          "unit_price",
+          "amount",
+          "fee",
+          "currency",
+          "notes",
+          "reversal_of",
+          "correction_of",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "TransactionChanges": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "buy",
+              "sell",
+              "deposit",
+              "withdrawal",
+              "adjustment",
+              "opening"
+            ]
+          },
+          "transaction_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "quantity": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d{1,16}(\\.\\d{1,12})?$"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "description": "Decimal string recommended. Up to 16 integer and 12 fractional digits. Transaction quantities must be nonzero."
+          },
+          "unit_price": {
+            "anyOf": [
+              {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^\\d{1,16}(\\.\\d{1,12})?$"
+                  },
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional nonnegative price; amount must reconcile at 8 decimal places."
+          },
+          "amount": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d{1,20}(\\.\\d{1,8})?$"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "description": "Decimal string recommended. Up to 20 integer and 8 fractional digits."
+          },
+          "fee": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{1,20}(\\.\\d{1,8})?$"
+              },
+              {
+                "type": "number",
+                "minimum": 0
+              }
+            ],
+            "description": "Nonnegative fee for original entries; defaults to zero."
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [],
+        "additionalProperties": false,
+        "minProperties": 1
+      },
+      "ReversalWrite": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "Required non-whitespace audit reason."
+          },
+          "transaction_date": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "CorrectionWrite": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "Required non-whitespace audit reason."
+          },
+          "changes": {
+            "$ref": "#/components/schemas/TransactionChanges"
+          }
+        },
+        "required": [
+          "reason",
+          "changes"
+        ],
+        "additionalProperties": false
+      },
+      "Correction": {
+        "type": "object",
+        "properties": {
+          "reversal": {
+            "$ref": "#/components/schemas/Transaction"
+          },
+          "replacement": {
+            "$ref": "#/components/schemas/Transaction"
+          }
+        },
+        "required": [
+          "reversal",
+          "replacement"
+        ],
+        "additionalProperties": false
+      },
+      "Empty": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "Holding": {
+        "type": "object",
+        "properties": {
+          "asset": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "portfolio": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "category": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "category_code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "GBP",
+              "USD",
+              "INR"
+            ]
+          },
+          "unit": {
+            "type": "string"
+          },
+          "is_archived": {
+            "type": "boolean"
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date"
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^-?\\d+\\.\\d{12}$"
+          },
+          "transaction_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "last_transaction_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "category_name": {
+            "type": "string"
+          },
+          "portfolio_name": {
+            "type": "string"
+          },
+          "recorded_value": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+\\.\\d{8}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "valuation_status": {
+            "type": "string",
+            "enum": [
+              "recorded",
+              "unvalued",
+              "needs_review"
+            ]
+          },
+          "valuation_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_updated": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "asset",
+          "portfolio",
+          "category",
+          "category_code",
+          "name",
+          "currency",
+          "unit",
+          "is_archived",
+          "as_of",
+          "quantity",
+          "transaction_count",
+          "last_transaction_date"
+        ],
+        "additionalProperties": false
+      },
+      "AssetSummary": {
+        "type": "object",
+        "properties": {
+          "asset": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "portfolio": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "category": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "category_code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "GBP",
+              "USD",
+              "INR"
+            ]
+          },
+          "unit": {
+            "type": "string"
+          },
+          "is_archived": {
+            "type": "boolean"
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date"
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^-?\\d+\\.\\d{12}$"
+          },
+          "transaction_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "last_transaction_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "net_recorded_amount": {
+            "type": "string",
+            "pattern": "^-?\\d+\\.\\d{8}$"
+          },
+          "net_fees": {
+            "type": "string",
+            "pattern": "^-?\\d+\\.\\d{8}$"
+          },
+          "category_name": {
+            "type": "string"
+          },
+          "portfolio_name": {
+            "type": "string"
+          },
+          "recorded_value": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d+\\.\\d{8}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "valuation_status": {
+            "type": "string",
+            "enum": [
+              "recorded",
+              "unvalued",
+              "needs_review"
+            ]
+          },
+          "valuation_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_updated": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "asset",
+          "portfolio",
+          "category",
+          "category_code",
+          "name",
+          "currency",
+          "unit",
+          "is_archived",
+          "as_of",
+          "quantity",
+          "transaction_count",
+          "last_transaction_date",
+          "net_recorded_amount",
+          "net_fees"
+        ],
+        "additionalProperties": false
+      },
+      "Error": {
+        "type": "object",
+        "description": "DRF detail, field error lists, nested field errors, or non_field_errors.",
+        "additionalProperties": true
+      },
+      "PortfolioPage": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "previous": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Portfolio"
+            }
+          }
+        },
+        "required": [
+          "count",
+          "next",
+          "previous",
+          "results"
+        ],
+        "additionalProperties": false
+      },
+      "CategoryPage": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "previous": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Category"
+            }
+          }
+        },
+        "required": [
+          "count",
+          "next",
+          "previous",
+          "results"
+        ],
+        "additionalProperties": false
+      },
+      "AssetPage": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "previous": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Asset"
+            }
+          }
+        },
+        "required": [
+          "count",
+          "next",
+          "previous",
+          "results"
+        ],
+        "additionalProperties": false
+      },
+      "TransactionPage": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "previous": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Transaction"
+            }
+          }
+        },
+        "required": [
+          "count",
+          "next",
+          "previous",
+          "results"
+        ],
+        "additionalProperties": false
+      },
+      "HoldingPage": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "previous": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Holding"
+            }
+          }
+        },
+        "required": [
+          "count",
+          "next",
+          "previous",
+          "results"
+        ],
+        "additionalProperties": false
+      },
+      "OpeningTransaction": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "transaction_date",
+          "quantity",
+          "amount"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "buy",
+              "sell",
+              "deposit",
+              "withdrawal",
+              "adjustment",
+              "opening"
+            ]
+          },
+          "transaction_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "quantity": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d{1,16}(\\.\\d{1,12})?$"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "description": "Decimal string recommended. Up to 16 integer and 12 fractional digits. Transaction quantities must be nonzero."
+          },
+          "unit_price": {
+            "anyOf": [
+              {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^\\d{1,16}(\\.\\d{1,12})?$"
+                  },
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional nonnegative price; amount must reconcile at 8 decimal places."
+          },
+          "amount": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^-?\\d{1,20}(\\.\\d{1,8})?$"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "description": "Decimal string recommended. Up to 20 integer and 8 fractional digits."
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      },
+      "ValuationWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "valued_at",
+          "basis",
+          "value"
+        ],
+        "properties": {
+          "valued_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "basis": {
+            "type": "string",
+            "enum": [
+              "unit",
+              "total"
+            ]
+          },
+          "value": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^\\d{1,20}(\\.\\d{1,8})?$"
+              },
+              {
+                "type": "number",
+                "minimum": 0
+              }
+            ],
+            "description": "Nonnegative manually recorded value in the asset currency."
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      },
+      "Valuation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "asset": {
+            "type": "integer"
+          },
+          "valued_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "method": {
+            "type": "string"
+          },
+          "basis": {
+            "type": "string",
+            "enum": [
+              "unit",
+              "total"
+            ]
+          },
+          "value": {
+            "type": "string",
+            "pattern": "^-?\\d+\\.\\d{8}$"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "asset",
+          "valued_at",
+          "revision",
+          "method",
+          "basis",
+          "value",
+          "currency",
+          "source",
+          "notes",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "ValuationPage": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "previous": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Valuation"
+            }
+          }
+        },
+        "required": [
+          "count",
+          "next",
+          "previous",
+          "results"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

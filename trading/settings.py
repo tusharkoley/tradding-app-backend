@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     'rest_auth.registration',  # For registration views
     'rest_framework_simplejwt',
     'transactions',
+    'portfolio',
 
 ]
 
