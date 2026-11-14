@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
+from scripts.alert_diagnostics import describe_failure
 from stocks.alerts.runner import DEFAULT_CONFIG, run_alerts
 
 
@@ -20,4 +21,5 @@ class Command(BaseCommand):
         try:
             run_alerts(options['config'], options['state_dir'], options['dry_run'], options['only'])
         except Exception as exc:
-            raise CommandError(f'Alert runner failed ({type(exc).__name__}); inspect progress logs.') from None
+            self.stderr.write(describe_failure(exc))
+            raise CommandError(f'Alert runner failed ({type(exc).__name__}); see failure locations and per-alert progress above.') from None

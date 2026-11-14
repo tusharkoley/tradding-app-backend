@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from scripts.alert_diagnostics import describe_failure
 from scripts.check_naked_trader import run as run_naked_trader
 from stocks.alerts.email import send_email
 from stocks.alerts.weekly import build_report, DataNotReady
@@ -87,8 +88,8 @@ def run_alerts(config_path, state_dir, dry_run=False, only=None, now=None):
                     temporary.replace(state_path)
                 print(f'{name}: completed.', flush=True)
             except Exception as exc:
-                errors.append(name)
-                print(f'{name}: failed ({type(exc).__name__}); will retry. Check database/data, SMTP and volume configuration.', flush=True)
+                errors.append(f'{name} ({type(exc).__name__})')
+                print(f'{name}: failed; will retry. {describe_failure(exc)}', flush=True)
                 if isinstance(exc, DataNotReady):
                     print(str(exc), flush=True)
     if errors:

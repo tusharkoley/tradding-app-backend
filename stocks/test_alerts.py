@@ -79,3 +79,28 @@ class AlertTests(SimpleTestCase):
         price.objects.filter.return_value.values.return_value = []
         with self.assertRaises(DataNotReady):
             build_report(date(2026, 10, 30), {})
+
+
+class AlertDiagnosticsTests(SimpleTestCase):
+    def test_provider_messages_are_hidden_but_failure_location_is_visible(self):
+        from scripts.alert_diagnostics import describe_failure
+        try:
+            raise RuntimeError('secret-password recipient@example.com')
+        except RuntimeError as exc:
+            result = describe_failure(exc)
+        self.assertIn('test_alerts.py:', result)
+        self.assertIn('RuntimeError', result)
+        self.assertNotIn('secret-password', result)
+        self.assertNotIn('recipient@example.com', result)
+
+    def test_known_parser_failure_is_explained(self):
+        from scripts.alert_diagnostics import describe_failure
+        self.assertIn('Missing or changed share table', describe_failure(ValueError('Missing or changed share table')))
+
+    @patch.dict('os.environ', {'ALERT_EMAIL_TO': 'to@example.com', 'EMAIL_HOST_USER': 'from@example.com', 'EMAIL_HOST_PASSWORD': ''}, clear=True)
+    @patch('scripts.alert_email.smtplib.SMTP')
+    def test_missing_password_fails_before_smtp(self, smtp):
+        from scripts.alert_email import send_email
+        with self.assertRaisesMessage(ValueError, 'Configure EMAIL_HOST_PASSWORD'):
+            send_email('subject', 'body')
+        smtp.assert_not_called()

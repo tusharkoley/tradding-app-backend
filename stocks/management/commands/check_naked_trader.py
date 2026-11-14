@@ -2,6 +2,7 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 
+from scripts.alert_diagnostics import describe_failure
 from scripts.check_naked_trader import ROOT, run
 
 
@@ -16,6 +17,7 @@ class Command(BaseCommand):
         try:
             run(options['state'], dry_run=options['dry_run'])
         except Exception as exc:
+            self.stderr.write(describe_failure(exc))
             # Provider exception text can expose email addresses or credentials.
             raise CommandError(
                 f'Naked Trader checker failed ({type(exc).__name__}). '
