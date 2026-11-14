@@ -16,7 +16,7 @@ The runner decides which alerts are due, so Railway needs only one cron job.
 Configuration: [config.json](config.json). `enabled: false` disables an alert.
 Change hours, timezone, markets or top_n here, then redeploy. `ALERT_CONFIG_PATH`
 or `--config PATH` selects an alternate JSON file. Optional top-level `recipient`
-overrides the environment recipient for both alerts. Otherwise set
+overrides the environment recipient for all alerts. Otherwise set
 `ALERT_EMAIL_TO=tusharkoley@gmail.com`; the existing `NAKED_TRADER_EMAIL_TO` remains
 supported as a fallback. Reuse EMAIL_HOST, EMAIL_PORT, EMAIL_HOST_USER,
 EMAIL_HOST_PASSWORD and DEFAULT_FROM_EMAIL. Sender uses SMTP STARTTLS.
@@ -25,6 +25,7 @@ Default schedules use Europe/London (automatic summer-time changes):
 
 - Naked Trader: daily 10:00 and 16:00.
 - Weekly performers: Friday 22:00, with retries through Sunday if needed.
+- Daily performers: Monday–Friday 16:00, with automatic UK daylight-saving changes.
 
 The hourly UTC Railway trigger checks schedules using the configured local time.
 Successful slots are remembered in `/data/sent.json`; failed ones retry on the
@@ -37,6 +38,21 @@ The existing Naked Trader baseline path `/data/naked-trader/state.json` is reuse
 when `--state-dir /data` is supplied, so keep the SAME service and volume. No new
 historical alert is generated on a first baseline run. If migrating to another
 volume, copy that file first. Local default state is `.alerts/`, excluded from Git.
+
+Daily calculation
+-----------------
+
+Daily performers uses the same US, UK and India universe, with up to 10 stocks
+per market ranked by percentage change between the latest stored adjusted close
+and the preceding available close. Dates are shown for every row. At 16:00 UK
+time, US and UK trading can still be in progress: this is a stored closing-price
+report, not live intraday performance. Markets can therefore use different dates.
+Keep the price loader and adjusted prices refreshed before the scheduled run.
+Endpoints older than four calendar days are rejected; the preceding close must
+be within five calendar days of the endpoint. Missing or invalid adjusted prices
+are excluded. If any market has no eligible data, the email is deferred and the
+slot retries on the next weekday invocation that day. No weekend daily emails
+are sent. A later weekday uses its own new slot.
 
 Weekly calculation
 ------------------
@@ -71,6 +87,7 @@ Preview and verification
 ```sh
 python manage.py send_alerts --state-dir /data --dry-run
 python manage.py send_alerts --state-dir /data --only weekly_performers --dry-run
+python manage.py send_alerts --state-dir /data --only daily_performers --dry-run
 python manage.py test stocks.test_alerts --noinput
 python -m unittest discover -s scripts -p 'test_naked_trader.py'
 ```
@@ -82,5 +99,5 @@ email or updating baselines/success records (it creates directories/lock files).
 To add an alert, implement a handler in `stocks/alerts/`, register its name in
 runner.HANDLERS and add a config entry. A handler must raise on failure and return
 only after success. Use the common send_email function for delivery. Available
-schedules are daily hours or weekly weekday/hour; no new Railway service is needed.
+schedules are daily hours (with optional weekdays, Monday=0) or weekly weekday/hour; no new Railway service is needed.
 The original `check_naked_trader` management command remains available.

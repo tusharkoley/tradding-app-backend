@@ -104,3 +104,55 @@ class AlertDiagnosticsTests(SimpleTestCase):
         with self.assertRaisesMessage(ValueError, 'Configure EMAIL_HOST_PASSWORD'):
             send_email('subject', 'body')
         smtp.assert_not_called()
+
+
+class DailyPerformerTests(SimpleTestCase):
+    def test_weekdays_and_uk_summer_time(self):
+        schedule = {'frequency': 'daily', 'hours': [16], 'weekdays': [0, 1, 2, 3, 4]}
+        now = datetime(2026, 7, 3, 16, tzinfo=ZoneInfo('Europe/London'))
+        self.assertEqual(due_slot(schedule, now), '2026-07-03T16:00:00+01:00')
+        self.assertIsNone(due_slot(schedule, now.replace(hour=15)))
+        self.assertIsNone(due_slot(schedule, now.replace(day=4)))
+        self.assertIsNone(due_slot(schedule, now.replace(day=5)))
+
+    @patch('stocks.alerts.weekly.Price')
+    @patch('stocks.alerts.weekly.Company')
+    def test_daily_report_uses_latest_market_dates_and_previous_trading_close(self, company, price):
+        company.objects.values.return_value = [
+            {'ticker': t, 'company_name': t, 'country': c}
+            for t, c in [('A', 'USA'), ('B', 'UK'), ('C', 'India')]]
+        price.objects.filter.return_value.values.return_value = [
+            {'ticker': t, 'date': date(2026, 11, day), 'split_adjusted_price__close': close}
+            for t, observations in [('A', [(12, 100), (13, 110)]),
+                                    ('B', [(13, 100), (16, 120)]),
+                                    ('C', [(13, 100), (16, 90)])]
+            for day, close in observations]
+        subject, body = build_report(date(2026, 11, 16), {}, daily=True)
+        self.assertIn('Daily stock performers', subject)
+        self.assertIn('A | A | +10.00%', body)
+        self.assertIn('B | B | +20.00%', body)
+        self.assertIn('C | C | -10.00%', body)
+        self.assertIn('(2026-11-13)', body)
+        with self.assertRaises(DataNotReady):
+            build_report(date(2026, 11, 23), {}, daily=True)
+
+    @patch('stocks.alerts.runner.send_email')
+    @patch('stocks.alerts.runner.build_report', return_value=('Daily subject', 'Daily body'))
+    def test_daily_slot_sends_once(self, report, send):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = root / 'config.json'
+            config.write_text(json.dumps({'timezone': 'Europe/London', 'alerts': {
+                'daily_performers': {'enabled': True, 'schedule': {
+                    'frequency': 'daily', 'hours': [16], 'weekdays': [0, 1, 2, 3, 4]}}}}))
+            now = datetime(2026, 11, 16, 16, tzinfo=ZoneInfo('Europe/London'))
+            run_alerts(config, root, now=now.replace(day=14))
+            run_alerts(config, root, now=now.replace(hour=15))
+            send.assert_not_called()
+            run_alerts(config, root, now=now, dry_run=True)
+            send.assert_not_called()
+            self.assertFalse((root / 'sent.json').exists())
+            run_alerts(config, root, now=now)
+            run_alerts(config, root, now=now.replace(hour=17))
+            send.assert_called_once_with('Daily subject', 'Daily body', None)
+            self.assertTrue(report.call_args.kwargs['daily'])

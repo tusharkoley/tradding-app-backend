@@ -18,6 +18,11 @@ def due_slot(schedule, now):
         hours = schedule['hours']
         if not hours or any(type(h) is not int or not 0 <= h <= 23 for h in hours):
             raise ValueError('Daily hours must be integers 0..23')
+        weekdays = schedule.get('weekdays', list(range(7)))
+        if not weekdays or any(type(day) is not int or not 0 <= day <= 6 for day in weekdays):
+            raise ValueError('Daily weekdays must be integers 0..6')
+        if now.weekday() not in weekdays:
+            return None
         due = [now.replace(hour=h, minute=0, second=0, microsecond=0) for h in hours]
         due = [slot for slot in due if slot <= now]
         return max(due).isoformat() if due else None
@@ -43,7 +48,15 @@ def weekly_performers(options, slot, state_dir, dry_run, recipient):
         send_email(subject, body, recipient)
 
 
-HANDLERS = {'naked_trader': naked_trader, 'weekly_performers': weekly_performers}
+def daily_performers(options, slot, state_dir, dry_run, recipient):
+    subject, body = build_report(datetime.fromisoformat(slot).date(), options, daily=True)
+    if dry_run:
+        print(subject + '\n' + body, flush=True)
+    else:
+        send_email(subject, body, recipient)
+
+
+HANDLERS = {'naked_trader': naked_trader, 'weekly_performers': weekly_performers, 'daily_performers': daily_performers}
 
 
 def run_alerts(config_path, state_dir, dry_run=False, only=None, now=None):

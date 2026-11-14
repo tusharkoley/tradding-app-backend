@@ -15,9 +15,9 @@ class DataNotReady(ValueError):
     pass
 
 
-def rank_market(companies, prices, friday, limit=10):
-    """Use exact Friday endpoint and latest prior-week close per ticker."""
-    baseline = friday - timedelta(days=7)
+def rank_market(companies, prices, friday, limit=10, baseline_days=7):
+    """Rank exact-date closes against the latest close in the baseline window."""
+    baseline = friday - timedelta(days=baseline_days)
     by_ticker = defaultdict(list)
     for row in prices:
         by_ticker[row['ticker']].append(row)
@@ -38,7 +38,7 @@ def rank_market(companies, prices, friday, limit=10):
     return ranked[:limit], len(ranked)
 
 
-def build_report(friday, options):
+def build_report(friday, options, *, daily=False):
     markets = options.get('markets', ['US', 'UK', 'India'])
     limit = options.get('top_n', 10)
     if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 100:
@@ -59,18 +59,29 @@ def build_report(friday, options):
     prices = list(Price.objects.filter(
         ticker__in=tickers, date__gte=friday - timedelta(days=11), date__lte=friday,
     ).values('ticker', 'date', 'split_adjusted_price__close'))
-    lines = [f'Weekly top {limit} tracked stocks — week ending {friday}', '',
+    period = 'Daily' if daily else 'Weekly'
+    date_label = 'as of' if daily else 'week ending'
+    lines = [f'{period} top {limit} tracked stocks — {date_label} {friday}', '',
              'Ranked by split-adjusted closing-price return (excluding dividends).',
              'Universe: companies stored in Tradezens, not every listed stock.', '']
+    if daily:
+        lines.extend(['Latest available stored closes per market; not live intraday prices.',
+                      'Each return compares consecutive available trading-day closes; dates shown below.', ''])
     for market in markets:
         universe = groups[market]
-        leaders, eligible = rank_market(universe, prices, friday, limit)
+        endpoint = friday
+        if daily:
+            dates = [row['date'] for row in prices if row['ticker'] in universe]
+            endpoint = max(dates) if dates else None
+            if endpoint is None or (friday - endpoint).days > 4:
+                raise DataNotReady(f'{market}: no recent daily prices (as of {friday})')
+        leaders, eligible = rank_market(universe, prices, endpoint, limit, baseline_days=1 if daily else 7)
         if not eligible:
-            raise DataNotReady(f'{market}: no eligible adjusted Friday prices')
+            raise DataNotReady(f'{market}: no eligible adjusted daily prices' if daily else f'{market}: no eligible adjusted Friday prices')
         lines.extend([market, f'Eligible: {eligible}/{len(universe)}; excluded: {len(universe) - eligible}',
-                      'Rank | Ticker | Company | Weekly return | Start close/date | End close/date'])
+                      f'Rank | Ticker | Company | {period} return | Start close/date | End close/date'])
         for index, row in enumerate(leaders, 1):
             lines.append(f"{index} | {row['ticker']} | {row['name']} | {row['return']:+.2f}% | "
                          f"{row['start']:.4f} ({row['start_date']}) | {row['end']:.4f} ({row['end_date']})")
         lines.append('')
-    return f'Weekly stock performers — {friday}', '\n'.join(lines)
+    return f'{period} stock performers — {friday}', '\n'.join(lines)

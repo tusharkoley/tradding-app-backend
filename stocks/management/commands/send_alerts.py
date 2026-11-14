@@ -12,7 +12,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('--config', type=Path, default=Path(os.environ.get('ALERT_CONFIG_PATH', DEFAULT_CONFIG)))
         parser.add_argument('--state-dir', type=Path, default=Path(os.environ.get('ALERT_STATE_DIR', '.alerts')))
-        parser.add_argument('--only', choices=['naked_trader', 'weekly_performers'])
+        parser.add_argument('--only', choices=['naked_trader', 'weekly_performers', 'daily_performers'])
         parser.add_argument('--dry-run', action='store_true')
 
     def handle(self, *args, **options):
